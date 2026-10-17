@@ -1,0 +1,28 @@
+name: archive-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  archive-test:
+    name: archive test / vet / build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install Fyne/GLFW build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev pkg-config
+      - name: Test
+        run: go test ./archive/... ./cmd -count=1
+      - name: Vet
+        run: go vet ./archive/... ./cmd
+      - name: Build
+        run: go build -o /tmp/tdl-check .

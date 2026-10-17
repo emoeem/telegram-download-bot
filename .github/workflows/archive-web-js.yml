@@ -1,0 +1,28 @@
+name: archive-web-js
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  archive-web-js:
+    name: archive web JS syntax
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Check embedded web script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path("archive/web/index.html").read_text(encoding="utf-8")
+          script = src.split("<script>", 1)[1].split("</script>", 1)[0]
+          Path("/tmp/archive-index.js").write_text(script, encoding="utf-8")
+          PY
+          node --check /tmp/archive-index.js

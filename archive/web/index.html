@@ -1,0 +1,363 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Telegram Archive</title><link rel="stylesheet" href="/static/theme.css"></head><body><div class="shell"><aside class="side"><div class="brand">Telegram Archive</div><div class="nav"><button data-view="messages">▤ 消息</button><button data-view="images">▧ 图片</button><button data-view="videos">▶ 视频</button><button data-view="files">□ 文件</button><button data-view="links">↗ 链接</button><button data-view="deleted">⚠ 已删除</button><button data-view="edits">✎ 编辑记录</button><button data-view="dest">⚙ 发布目标</button><button data-view="storage">▣ 存储</button></div><div class="source-group" onclick="toggleSources()">监控源</div><div id="sourceList" class="source-list"><div id="sources"></div></div></aside><main class="main"><header class="top"><span class="top-title">Telegram Archive</span><span class="status-dot" title="归档服务运行中"></span><input id="q" class="search" placeholder="搜索关键词 / from:@user / in:@channel / has:image / before:2026-10-01"><button class="button" onclick="doSearch()">搜索</button><button class="button" onclick="doExport('csv')" title="导出当前视图为 CSV">⤓ CSV</button><button class="button" onclick="doExport('json')" title="导出当前视图为 JSON">⤓ JSON</button><button class="button only-narrow" onclick="toggleRight()" title="显示/隐藏统计面板">📊</button><span id="acct" class="chip" onclick="acctClick()" title="账号状态">…</span><button class="button theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">☾</button><button class="button" onclick="openHelp()">❓ 说明</button></header><div id="deletedBanner" class="banner">⚠ 已从 Telegram 删除，本地档案保留</div><div id="viewHead" class="view-head"><div><div class="breadcrumbs">Archive <span>›</span> <b>消息</b></div><h1>消息</h1><p>实时归档 · 本地保留 Telegram 内容</p></div><span class="view-count">/messages</span></div><div id="topicBar" class="topic-bar" hidden></div><section id="feed" class="feed"></section><footer class="footer"><span><span class="status-dot"></span> 监听服务</span><span id="footerHost">·</span><span>Telegram Archive</span></footer></main><aside class="right"><div class="right-tabs"><button id="rightTabDownload" class="right-tab active" onclick="setRightPanel('download')">下载</button><button id="rightTabStats" class="right-tab" onclick="setRightPanel('stats')">统计</button><button id="rightTabDest" class="right-tab" onclick="setRightPanel('dest')">发布</button><button id="rightTabNotify" class="right-tab" onclick="setRightPanel('notify')">通知</button></div><section id="downloadPanel" class="download-panel"><div class="right-heading"><b>媒体下载</b><span>自动刷新 5s</span></div><div class="download-summary"><div><b id="dlRunning">0</b><span>进行中</span></div><div><b id="dlQueued">0</b><span>排队</span></div><div><b id="dlCompleted">0</b><span>完成</span></div><div><b id="dlFailed">0</b><span>失败</span></div></div><div class="download-actions"><button class="button" onclick="toggleDownloadPause()" id="dlPauseBtn">暂停下载</button><button class="button" onclick="retryFailedDownloads()">重试失败</button></div><div id="downloadActive" class="download-active"></div><div class="right-heading"><b>归档任务</b><span>回填 / 补洞</span></div><div id="jobs"><div class="download-empty">暂无归档任务</div></div></section><section id="statsPanel" hidden><div class="right-heading"><b>归档统计</b><span>实时</span></div><div id="stats" class="stats"></div></section><section id="destPanel" hidden><div class="right-heading"><b>发布目标</b><span>配置</span></div><div id="destinations"></div></section><section id="notifyPanel" hidden><div class="right-heading"><b>通知规则</b><span>关键词 → Webhook / Bot</span></div><div id="notifyRules" class="download-active"></div><details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">➕ 添加规则</summary><div style="margin-top:8px;display:grid;gap:8px"><input type="text" id="nName" placeholder="规则名称，如: 服务器告警" style="width:100%"><input type="text" id="nKeywords" placeholder="关键词（逗号分隔，空=全部消息）" style="width:100%"><input type="text" id="nExclude" placeholder="排除词（逗号分隔）" style="width:100%"><input type="text" id="nChats" placeholder="限定聊天 ID（逗号分隔，空=全部）" style="width:100%"><input type="text" id="nWebhook" placeholder="Webhook URL（可选，http/https）" style="width:100%"><input type="text" id="nBotChat" placeholder="Bot 发送的 chat_id（可选）" style="width:100%"><input type="password" id="nBotToken" placeholder="Bot Token（可选，仅写入不回显）" style="width:100%"><button class="button" style="width:100%" onclick="submitNotifyRule()">保存规则</button></div></details><div class="right-heading" style="margin-top:12px"><b>最近投递</b><span>最新 30 条</span></div><div id="notifyLog" class="download-active"></div></section></aside></div><nav class="mobile-nav"><button onclick="mobileNav('messages')">▤<span>消息</span></button><button onclick="mobileNav('images')">▧<span>媒体</span></button><button onclick="toggleRight()">☰<span>更多</span></button></nav><div id="loginModal" class="modal" onclick="if(event.target===this)closeLogin()"><div class="modal-box"><h3>🔐 登录 Telegram 账号</h3><div id="loginBody"><div class="qr-hint">用手机 Telegram：<b>设置 → 设备 → 链接桌面设备</b>，扫描下方二维码</div><div class="qr-wrap"><img id="qrImg" src="" alt="QR"><div id="qrStatus" class="qr-status">正在生成二维码…</div></div><div class="row" id="pwdRow" hidden><label>两步验证密码（2FA）</label><input type="password" id="pwdInput" placeholder="云密码" onkeydown="if(event.key==='Enter')submitPwd()"><div class="modal-actions"><button class="button" onclick="submitPwd()">提交</button></div></div><div class="modal-actions"><button class="button" onclick="cancelQR()">取消</button></div></div></div></div>
+<div id="addModal" class="modal" onclick="if(event.target===this)closeAdd()"><div class="modal-box"><h3>➕ 添加监控源</h3><div class="row"><label>频道 / 群组 / 用户（@username、t.me 链接或数字 ID，支持私有邀请链接 t.me/+…）</label><input type="text" id="addTarget" placeholder="@durov 或 https://t.me/+AbCdEf…"><button type="button" class="button" style="width:100%;margin-top:8px" onclick="toggleDialogs(this)">📋 从我的聊天列表选择（你加入的频道 / 群组 / 私聊）</button><input type="text" id="dlgFilter" hidden placeholder="🔍 输入名称或 @用户名 过滤" oninput="renderDlgList()" style="width:100%;margin-top:8px"><div id="dlgList" hidden style="max-height:240px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)"></div></div><div class="row"><label>历史回填条数上限</label><input type="number" id="addLimit" value="1000" min="1"></div><div class="row"><label>起点（可选，YYYY-MM-DD 或 RFC3339，留空表示不限）</label><input type="text" id="addSince" placeholder="2026-01-01"></div><div class="row"><label>关键词白名单（可选，逗号分隔，命中任一才归档）</label><input type="text" id="addKeywords" placeholder="空=不过滤，如: 福利,资源,更新"></div><div class="row"><label>排除词（可选，逗号分隔，命中即跳过）</label><input type="text" id="addExclude" placeholder="空=不过滤，如: 广告,推广"></div><div class="row"><label>单文件大小上限（可选 MB，超过则跳过下载）</label><input type="number" id="addMaxSize" min="0" placeholder="0=不限"></div><div class="row checkbox-row"><input type="checkbox" id="addDownload" checked><label style="margin:0" for="addDownload">同时下载媒体文件到本地</label></div><div id="addErr" class="qr-status err"></div><div class="modal-actions"><button class="button" onclick="closeAdd()">取消</button><button class="button" onclick="submitAdd()">添加并回填</button></div></div></div>
+<div id="helpModal" class="modal" onclick="if(event.target===this)closeHelp()"><div class="modal-box help"><h3>❓ 使用说明</h3><h4>快速开始</h4><ol><li>点击顶栏账号芯片，用手机 Telegram <b>设置 → 设备 → 链接桌面设备</b> 扫码登录（如开启了两步验证，需再输入云密码）。</li><li>左侧 <b>Monitored sources → 添加源</b>，填入 @username 或 t.me 链接，保存后自动回填历史消息。</li><li>归档由 serve 进程实时进行（含每 10 分钟巡检补漏与媒体下载）；也可另开终端运行 <code>tdl archive run</code> 获得更强的长驻监控。</li><li>顶部搜索框支持 <code>from:@user</code> / <code>in:@channel</code> / <code>has:image</code> / <code>before:2026-10-01</code> 等语法。</li></ol><h4>CLI 命令参考</h4><ul><li><code>tdl archive login [--qr]</code> — 终端登录（验证码或扫码）</li><li><code>tdl archive monitor add @channel --limit 1000 --since 2026-01-01</code></li><li><code>tdl archive run</code> — 长驻实时监听 + 巡检 + 媒体下载</li><li><code>tdl archive sync @channel</code> — 手动补洞</li><li><code>tdl archive search "关键词"</code> / <code>stats</code> / <code>doctor</code></li><li><code>tdl archive media pending|retry</code> — 媒体任务排查</li><li><code>tdl archive notify add/list/test/log</code> — 关键词通知规则（Webhook / Bot API）</li></ul><h4>通知规则</h4><ul><li>右侧「通知」面板或 CLI 可创建规则：匹配关键词的<b>实时新消息</b>会推送到 Webhook（JSON POST）或 Telegram Bot API。</li><li>历史回填不触发通知；每条规则限速 20 条/分钟；Bot Token 只写入不回显。</li></ul><h4>注意事项</h4><ul><li>归档使用你的 <b>用户账号</b>（MTProto），只能归档你有权限查看的内容。</li><li>数据位于 <code>~/.tdl/archive/</code>（SQLite + 内容寻址媒体对象）。</li><li>serve 默认监听 <code>127.0.0.1</code>；对外暴露请务必加 <code>--auth-basic user:pass</code>。</li><li>消息删除为软删除、编辑保留全部版本，可在 Deleted / Edits 视图查看。</li></ul><div class="modal-actions"><button class="button" onclick="closeHelp()">知道了</button></div></div></div>
+<div id="editModal" class="modal" onclick="if(event.target===this)closeEdit()"><div class="modal-box"><h3>⚙ 编辑监控规则</h3><div class="muted" id="editWho" style="margin-bottom:10px"></div><div class="row"><label>关键词白名单（逗号分隔，命中任一才归档）</label><input type="text" id="editKeywords" placeholder="如: 福利,资源"></div><div class="row"><label>排除词（逗号分隔，命中即跳过）</label><input type="text" id="editExclude" placeholder="如: 广告,推广"></div><div class="row"><label>单文件大小上限（MB，0 = 不限）</label><input type="number" id="editMaxSize" min="0" value="0"></div><div class="row checkbox-row"><input type="checkbox" id="editDownload"><label style="margin:0" for="editDownload">下载媒体文件到本地</label></div><div class="row checkbox-row"><input type="checkbox" id="editEnabled"><label style="margin:0" for="editEnabled">启用监控（取消勾选 = 暂停，不删数据）</label></div><div id="editErr" class="qr-status err" hidden></div><div class="modal-actions"><button class="button" onclick="closeEdit()">取消</button><button class="button primary" onclick="saveEdit()">保存</button></div></div></div>
+<div id="lightbox" class="lightbox" onclick="closeLight()"><span class="close">×</span><div id="light"></div></div><script>
+let editChatId=null;
+function splitList(v){return (v||"").split(",").map(function(x){return x.trim()}).filter(Boolean)}
+function toggleRight(){document.body.classList.toggle("show-right")}
+function editSource(id){
+  let t=(state.targets||[]).filter(function(x){return x.ChatID===id})[0]||{};
+  editChatId=id;
+  $("#editWho").textContent=(t.Username||("chat "+id))+(t.Enabled===false?"（已暂停）":"");
+  $("#editKeywords").value=(t.Keywords||[]).join(",");
+  $("#editExclude").value=(t.ExcludeKeywords||[]).join(",");
+  $("#editMaxSize").value=t.MediaMaxSize?Math.round(t.MediaMaxSize/1048576):0;
+  $("#editDownload").checked=!!t.DownloadMedia;
+  $("#editEnabled").checked=t.Enabled!==false;
+  $("#editErr").hidden=true;
+  $("#editModal").style.display="flex";
+}
+function closeEdit(){$("#editModal").style.display="none"}
+async function saveEdit(){
+  if(editChatId===null)return;
+  let maxMB=Math.max(0,parseInt($("#editMaxSize").value||"0",10)||0);
+  let body={chat_id:editChatId,keywords:splitList($("#editKeywords").value),exclude_keywords:splitList($("#editExclude").value),
+            media_max_size:maxMB*1048576,download_media:$("#editDownload").checked,enabled:$("#editEnabled").checked};
+  try{
+    let r=await fetch("/api/targets",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok){$("#editErr").textContent=await r.text();$("#editErr").hidden=false;return}
+    closeEdit();load();
+  }catch(e){$("#editErr").textContent=String(e.message||e);$("#editErr").hidden=false}
+}
+// Export the current view through the same filters the list is using.
+function doExport(format){
+  let view=state.view,kind=view;
+  if(view==="images"||view==="videos"||view==="files")kind="media";
+  if(["messages","deleted","edited","links","media"].indexOf(kind)<0)kind="messages";
+  let p=new URLSearchParams({kind:kind,format:format});
+  if(kind==="media")p.set("media_kind",view==="images"?"image":view==="videos"?"video":"file");
+  else{let q=$("#q").value.trim();if(q)p.set("q",q)}
+  if(state.chat)p.set("chat",state.chat);
+  if(state.topic)p.set("topic",state.topic);
+  location.href="/api/export?"+p.toString();
+}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&$("#editModal").style.display==="flex")closeEdit()});
+
+const $=s=>document.querySelector(s);
+function applyTheme(theme){document.documentElement.setAttribute("data-theme",theme);localStorage.setItem("theme",theme);let b=$(".theme-toggle");if(b)b.textContent=theme==="light"?"☀":"☾"}
+function initTheme(){let saved=localStorage.getItem("theme"),theme=saved||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");applyTheme(theme)}
+function toggleTheme(){applyTheme(document.documentElement.getAttribute("data-theme")==="light"?"dark":"light")}
+function toggleSources(){let el=$("#sourceList"),h=document.querySelector(".source-group");if(!el)return;el.classList.toggle("collapsed");if(h)h.classList.toggle("collapsed",el.classList.contains("collapsed"))}
+initTheme();
+const pathView={"/messages":"messages","/deleted":"deleted","/edits":"edits","/media/images":"images","/media/videos":"videos","/media/files":"files","/links":"links","/storage":"storage"},state={chat:0,topic:0,view:(/^\/messages\/\d+$/.test(location.pathname)?"message-detail":(pathView[location.pathname]||"messages")),page:1};function esc(s){let d=document.createElement("div");d.textContent=s||"";return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function safeUrl(u){return /^https?:\/\//i.test(u||"")?u:"#"}function avatar(x){if(!x.AvatarPath)return"";let kind=x.SenderID?"user":"chat",id=x.SenderID||x.ChatID;return id?"/avatar/"+kind+"/"+id:""}function avatarTag(x){let u=avatar(x);return u?'<img class="avatar" src="'+u+'" onerror="this.style.display=\'none\'">':'<span class="avatar"></span>'}function asset(x){if(!x.MediaSHA256)return"";let mime=(x.MediaMime||"").toLowerCase(),u="/media/"+x.MediaSHA256,t=x.ThumbnailPath?"/media/thumb/"+x.MediaSHA256:u,p=x.PreviewPath?"/media/preview/"+x.MediaSHA256:u;if(mime.startsWith("image/"))return '<img class="media" loading="lazy" src="'+t+'" data-preview="'+p+'" onclick="showImage(this.dataset.preview)">';if(mime.startsWith("video/"))return '<button class="pill" type="button" onclick="event.stopPropagation();openMessageMedia(\''+u+'\')">▶ 打开视频</button>';if(mime.startsWith("audio/"))return '<audio class="media" controls src="'+u+'"></audio>';return '<a class="pill" href="'+u+'" target="_blank">打开文件 '+esc(x.MediaMime||"file")+"</a>"}function reactions(x){let rs=x.Reactions;if(!rs||!rs.length)return"";return '<div class="reactions">'+rs.map(r=>'<span class="reaction" title="'+esc(r.Emoji.startsWith("custom:")?"自定义表情":r.Emoji)+'">'+esc(r.Emoji.startsWith("custom:")?"🫶":r.Emoji)+" "+r.Count+"</span>").join("")+"</div>"}function render(rs){if(!rs||!rs.length){$("#feed").innerHTML='<div class="empty">暂无归档内容</div>';return}$("#feed").innerHTML=rs.map(x=>{if(x.EventType)return '<div class="system-event" data-rowid="'+x.RowID+'"><span class="event-line">'+esc(x.Text||x.EventType)+'</span><span class="time"> · '+new Date(x.Date*1000).toLocaleString()+'</span></div>';let reply=x.ReplyToRowID?'<div class="reply-ref" onclick="event.stopPropagation();location.href=\'/messages?focus='+x.ReplyToRowID+'\'">↳ 回复 '+esc(x.ReplyToSenderName||("消息 #"+x.ReplyToMessageID))+': '+esc(x.ReplyToText||"")+'</div>':"";let forwardName=x.ForwardFromName||(x.ForwardFromChatID?"Chat #"+x.ForwardFromChatID:x.ForwardFromID?"User #"+x.ForwardFromID:"");let forward=forwardName?'<div class="forward-ref">⇄ 转发自 '+esc(forwardName)+'</div>':"";let topic=x.ThreadID?'<span class="topic-pill" role="button" title="查看话题" onclick="event.stopPropagation();pickTopic('+x.ThreadID+')">#话题 '+x.ThreadID+'</span>':"";let actions='<div class="message-actions"><a class="button" href="/messages?focus='+x.RowID+'">查看原文</a><button class="button" onclick="event.stopPropagation();navigator.clipboard&&navigator.clipboard.writeText(location.origin+\\"/messages?focus=\\"+x.RowID)">复制链接</button></div>';return '<article class="msg '+(x.Deleted?"deleted":"")+'" data-rowid="'+x.RowID+'" onclick="clearFocusIfOther(this)">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span>'+topic+(x.Pinned?'<span class="pill">置顶</span>':"")+(x.Deleted?'<span class="pill">已删除</span>':"")+'</div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+reactions(x)+reply+forward+actions+'</div></article>'}).join("")}
+function renderStats(m){let groups=[["messages_total",m.db&&m.db.messages_total||0],["media_total",m.db&&m.db.media_total||0],["links_total",m.db&&m.db.links_total||0],["events_total",m.db&&m.db.events_total||0],["media_pending",m.media&&m.media.pending||0],["media_completed",m.media&&m.media.completed||0],["media_failed",m.media&&m.media.failed||0],["http_5xx",m.http&&m.http.requests_5xx||0]];let max=Math.max(1,...groups.map(x=>Number(x[1])||0));$("#stats").innerHTML=groups.map(x=>'<div class="stat"><span class="muted">'+x[0]+'</span><div class="num">'+x[1]+'</div><div class="stat-bar"><i style="width:'+Math.min(100,(Number(x[1])||0)*100/max)+'%"></i></div></div>').join("")}
+function mobileNav(view){if(view==="messages"){state.view="messages";state.page=1;history.pushState({},"","/messages");document.body.classList.remove("show-right");refresh()}else if(view==="images"){state.view="images";state.page=1;history.pushState({},"","/media/images");document.body.classList.remove("show-right");refresh()}}
+let _rawFetch=window.fetch;window.fetch=async(u,o)=>{let r=await _rawFetch(u,o);if(r&&r.status===401&&!window._authWarned){window._authWarned=true;document.body.innerHTML='<div style="padding:60px 30px;font:15px system-ui;color:#e9edf5;background:#080a0f;line-height:1.8">401 未授权：本站启用了 Token 认证（--auth-token 适用于脚本/curl）。<br>浏览器访问请改用 <b>--auth-basic user:pass</b> 启动 serve。</div>'}return r};
+async function load(){let s=await fetch("/api/metrics").then(r=>r.json()).catch(()=>null);if(s)renderStats(s);$("#footerHost").textContent="· "+location.host;let ts=await fetch("/api/targets").then(r=>r.json());state.targets=ts||[];$("#sources").innerHTML='<button class="source active" onclick="pick(0,this)">全部来源</button>'+(ts||[]).map(x=>'<div class="source-row"><button class="source" onclick="pick('+x.ChatID+',this)">'+esc(x.Username||x.ChatID)+'<small>'+esc(x.ArchiveMode||"local")+'</small></button><span class="src-actions"><button class="button" title="编辑规则" onclick="event.stopPropagation();editSource('+x.ChatID+')">⚙</button><button class="button" title="补洞同步" onclick="event.stopPropagation();syncSource('+x.ChatID+')">↻</button><button class="button" title="移除监控" onclick="event.stopPropagation();removeSource('+x.ChatID+')">✕</button></span></div>').join("")+'<button class="addsrc" onclick="openAdd()">＋ 添加源</button>';let ds=await fetch("/api/destinations").then(r=>r.json());$("#destinations").innerHTML=(ds||[]).map(x=>'<div style="padding:8px 0"><b>'+esc(x.Name)+'</b><div class="muted">'+esc(x.Kind)+" · "+(x.Enabled?"enabled":"disabled")+"</div></div>").join("");refresh();loadAuth();loadJobs()}async function refresh(){
+  let meta={messages:["消息","实时归档 · 本地保留 Telegram 内容","/messages"],images:["图片","按媒体类型浏览已归档内容","/media/images"],videos:["视频","按媒体类型浏览已归档内容","/media/videos"],files:["文件","按媒体类型浏览已归档内容","/media/files"],links:["链接","从消息中提取并索引的 URL","/links"],deleted:["已删除","Telegram 已删除，但本地档案仍然保留","/deleted"],edits:["编辑记录","保留消息的历史编辑版本","/edits"],storage:["存储","数据库、对象存储与磁盘空间","/storage"],"message-detail":["消息详情","完整查看单条归档消息及其上下文","/messages/<rowid>"]};
+  let m=meta[state.view]||meta.messages;document.title=m[0]+" · Telegram Archive";let vh=$("#viewHead");if(vh){vh.querySelector("h1").textContent=m[0];vh.querySelector("p").textContent=m[1];vh.querySelector(".view-count").textContent=m[2]}
+  if(state.view==="storage"){$("#deletedBanner").style.display="none";return loadStorage()}
+  if(state.view==="message-detail"){return loadMessageDetail()}
+  if(state.view==="messages"){return loadMessages()}
+  if(state.view==="deleted"){return loadDeleted()}
+  if(state.view==="edits"){return loadEdited()}
+  if(state.view==="images"||state.view==="videos"||state.view==="files"){return loadMedia()}
+  if(state.view==="links"){return loadLinks()}
+  $("#deletedBanner").style.display="none";
+}
+async function loadMessages(){
+  $("#deletedBanner").style.display="none";
+  let params=new URLSearchParams(location.search),urlQ=params.get("q");
+  if(urlQ!==null)$("#q").value=urlQ;
+  let q=$("#q").value.trim(),page=state.page||1;
+  let u="/api/messages/page?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(state.chat?"&chat="+state.chat:"")+(state.topic?"&topic="+state.topic:"");
+  let data=await fetch(u).then(r=>r.json());
+  render(data.items||[]);
+  let focus=params.get("focus"),target=null,targetInPage=false;
+  if(focus){
+    let focusRow=Number(focus);
+    if(Number.isSafeInteger(focusRow)&&focusRow>0){
+      target=(data.items||[]).find(x=>x.RowID===focusRow);
+      targetInPage=!!target;
+      if(!target){
+        let fr=await fetch("/api/message/rowid?rowid="+focusRow);
+        if(fr.ok){let fd=await fr.json();target=fd.message}
+      }
+    }
+  }
+  if(target){
+    if(!targetInPage)render([target]);
+    requestAnimationFrame(()=>{
+      let el=document.querySelector('.msg[data-rowid="'+target.RowID+'"]');
+      if(el){el.classList.add("focus-target");el.scrollIntoView({behavior:"smooth",block:"center"})}
+    });
+    history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));
+  } else if(focus){
+    history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));
+  }
+  let pages=Math.max(1,Math.ceil((data.total||0)/(data.page_size||50)));
+  if(!targetInPage)renderPager(data,pages);
+  loadTopicBar();
+}
+// The pager is a draggable timeline: the range slider scrubs through the whole
+// history of the current view (newest on the left, oldest on the right), the
+// buttons step one page, and the number box jumps to an exact page.
+function renderPager(data,pages){
+  let page=data.page||1;
+  $("#feed").insertAdjacentHTML("beforeend",'<div class="pager pager-card"><div class="pager-line"><button class="button" '+(page<=1?"disabled":"")+' onclick="state.page='+(page-1)+';loadMessages()">上一页</button><input type="range" class="pager-slider" min="1" max="'+pages+'" value="'+page+'" step="1" aria-label="按时间拖动浏览历史" oninput="scrubPager(this)" onchange="applyScrub()"><button class="button" '+(page>=pages?"disabled":"")+' onclick="state.page='+(page+1)+';loadMessages()">下一页</button></div><div class="pager-meta"><span id="pagerPos">第 '+page+" / "+pages+' 页 · 共 '+data.total+' 条</span><input type="number" class="pager-jump" min="1" max="'+pages+'" value="'+page+'" aria-label="跳转到页" onchange="jumpPager(this.value)"></div></div>');
+}
+let scrubTimer=null;
+function scrubPager(el){
+  let pos=$("#pagerPos");if(pos)pos.textContent="拖到第 "+el.value+" 页 · 松开加载";
+  if(scrubTimer)clearTimeout(scrubTimer);
+  // Live-follow while dragging (debounced), so long archives preview as you scrub.
+  scrubTimer=setTimeout(function(){let v=parseInt(el.value,10);if(Number.isSafeInteger(v)&&v>=1){state.page=v;loadMessages()}},350);
+}
+function applyScrub(){let el=document.querySelector(".pager-slider");if(el){let v=parseInt(el.value,10);if(Number.isSafeInteger(v)&&v>=1){state.page=v;loadMessages()}}}
+function jumpPager(v){let el=document.querySelector(".pager-slider");let pages=el?parseInt(el.max,10):1;let n=parseInt(v,10);if(!Number.isSafeInteger(n)||n<1)n=1;if(n>pages)n=pages;state.page=n;loadMessages()}
+function pickTopic(id){state.topic=(state.topic===id?0:id);state.page=1;loadTopicBar();if(state.view!=="messages"){state.view="messages";history.pushState({},"","/messages")}refresh()}
+// The topic bar lists the forum topics of the selected chat; click to filter,
+// click again (or 全部) to clear.
+async function loadTopicBar(){
+  let bar=$("#topicBar");if(!bar)return;
+  if(state.view!=="messages"||!state.chat){bar.hidden=true;bar.innerHTML="";return}
+  try{
+    let d=await fetch("/api/topics?chat="+state.chat).then(r=>r.json());
+    let ts=(d&&d.topics)||[];
+    if(!d||!d.forum||!ts.length){bar.hidden=true;bar.innerHTML="";return}
+    bar.hidden=false;
+    bar.innerHTML='<span class="topic-label">话题</span><button class="topic-chip'+(state.topic===0?" active":"")+'" onclick="pickTopic(0)">全部</button>'+ts.map(t=>'<button class="topic-chip'+(state.topic===t.topic_id?" active":"")+'" onclick="pickTopic('+t.topic_id+')" title="'+esc(t.title)+' · '+t.count+' 条">'+esc(t.title.length>18?t.title.slice(0,18)+"…":t.title)+'<small>'+t.count+"</small></button>").join("");
+  }catch(e){bar.hidden=true}
+}
+function clearFocusIfOther(el){
+  let active=document.querySelector(".focus-target");
+  if(active&&active!==el)active.classList.remove("focus-target");
+}
+async function loadMessageDetail(){
+  $("#deletedBanner").style.display="none";
+  let m=location.pathname.match(/^\/messages\/(\d+)$/),row=Number(m&&m[1]);
+  if(!Number.isSafeInteger(row)||row<=0){return renderDetailError("无效的消息 RowID")}
+  let res=await fetch("/api/message/rowid?rowid="+row);if(!res.ok){return renderDetailError(res.status===404?"找不到这条归档消息":"无法读取消息详情")}
+  let d=await res.json(),x=d&&d.message;if(!x){return renderDetailError("消息数据为空")}
+  document.title="消息 #"+x.MessageID+" · Telegram Archive";
+  let edits=[];try{let er=await fetch("/api/edits?chat="+encodeURIComponent(x.ChatID)+"&id="+encodeURIComponent(x.MessageID));if(er.ok)edits=await er.json()}catch(_){ }
+  renderMessageDetail(x,edits||[])
+}
+function renderDetailError(s){$("#feed").innerHTML='<div class="detail-error"><b>消息详情</b><p>'+esc(s)+'</p><a class="button" href="/messages">返回消息列表</a></div>'}
+function renderMessageDetail(x,edits){
+  let reply=x.ReplyToRowID?'<div class="detail-context reply-ref" onclick="location.href=\'/messages?focus='+x.ReplyToRowID+'\'"><b>↳ 回复 '+esc(x.ReplyToSenderName||("消息 #"+x.ReplyToMessageID))+'</b><div>'+esc(x.ReplyToText||"原消息没有可显示的正文")+'</div></div>':"";
+  let fn=x.ForwardFromName||(x.ForwardFromChatID?"Chat #"+x.ForwardFromChatID:x.ForwardFromID?"User #"+x.ForwardFromID:"");
+  let forward=fn?'<div class="detail-context forward-detail">⇄ <span class="muted">转发自</span> <b>'+esc(fn)+'</b>'+(x.ForwardFromMessageID?' <span class="muted">· message '+x.ForwardFromMessageID+'</span>':"")+(x.ForwardPostAuthor?'<div class="muted">发布者：'+esc(x.ForwardPostAuthor)+'</div>':"")+'</div>':"";
+  let badges=(x.ThreadID?'<span class="topic-pill">#topic-'+x.ThreadID+'</span>':"")+(x.Pinned?'<span class="pill">置顶</span>':"")+(x.Deleted?'<span class="pill">已删除</span>':"")+(x.MediaStatus?'<span class="pill">媒体 · '+esc(x.MediaStatus)+'</span>':"");
+  let event=x.EventType?'<div class="detail-event"><span class="event-line">'+esc(x.Text||x.EventType)+'</span><span class="muted">EventType · '+esc(x.EventType)+'</span></div>':"";
+  let history=edits.length?'<section class="detail-section"><div class="detail-section-head"><h2>编辑历史</h2><span>'+edits.length+' 个版本</span></div><div class="detail-timeline">'+edits.map(v=>'<div class="history-row '+(v.is_current?"current":"")+'"><div class="detail-version"><b>'+(v.is_current?"Current":"Version "+v.version)+'</b><span class="muted">'+(v.edit_date?new Date(v.edit_date*1000).toLocaleString():"—")+'</span></div><div class="detail-version-text">'+esc(v.text||v.caption||"（无文本内容）")+'</div></div>').join("")+'</div></section>':"";
+  let media=x.MediaSHA256?'<div class="detail-media">'+asset(x)+'</div>':"";
+  let facts='<div class="detail-facts">'+[["RowID",x.RowID],["Message ID",x.MessageID],["Chat ID",x.ChatID],["Grouped ID",x.GroupedID||"—"],["Views",x.Views||"—"],["Forwards",x.Forwards||"—"],["Replies",x.ReplyCount||"—"],["Edited",x.EditDate?new Date(x.EditDate*1000).toLocaleString():"未编辑"]].map(v=>'<div><span>'+v[0]+'</span><b>'+esc(String(v[1]))+'</b></div>').join("")+'</div>';
+  let actions='<div class="detail-actions"><a class="button" href="/messages">← 返回消息</a><button class="button" onclick="navigator.clipboard&&navigator.clipboard.writeText(location.href)">复制详情链接</button><a class="button" href="/messages?focus='+x.RowID+'">在时间轴定位</a></div>';
+  let head=event||'<div class="detail-head">'+avatarTag(x)+'<div class="detail-author"><div class="detail-author-name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</div><div class="detail-meta">'+(x.SenderUsername?'@'+esc(x.SenderUsername)+' · ':'')+esc(x.ChatTitle||("Chat "+x.ChatID))+' · '+new Date(x.Date*1000).toLocaleString()+'</div><div class="detail-badges">'+badges+'</div></div></div>';
+  $("#feed").innerHTML='<div class="detail-wrap">'+actions+'<article class="detail-card '+(x.Deleted?"deleted":"")+'">'+head+'<div class="detail-body">'+(x.Text||x.Caption?'<div class="detail-text">'+esc(x.Text||x.Caption)+'</div>':'<div class="detail-empty">（无正文文本）</div>')+media+reply+forward+'</div>'+facts+'</article>'+history+'</div>'
+}
+async function loadDeleted(){
+  $("#deletedBanner").style.display="block";
+  let q=$("#q").value.trim(),page=state.page||1;
+  let u="/api/deleted?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"");
+  let data=await fetch(u).then(r=>r.json());
+  renderDeleted(data)
+}
+function renderDeleted(data){
+  if(!data||!data.items||!data.items.length){
+    $("#feed").innerHTML='<div class="empty">暂无已删除消息，本地档案中没有符合条件的记录</div>';return
+  }
+  $("#feed").innerHTML=data.items.map(x=>'<article class="msg deleted">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">已删除</span><button class="button" style="padding:4px 8px;margin-left:auto" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看编辑历史</button></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+'<div class="deleted-meta">deleted_at：'+(x.DeletedAt?new Date(x.DeletedAt*1000).toLocaleString():"未知")+' · 来源：'+esc(x.ChatTitle||x.ChatID)+' · 原始 message id：'+x.MessageID+'</div><div class="edit-history" hidden></div></div></article>').join("");
+  let pages=Math.max(1,Math.ceil(data.total/data.page_size));
+  $("#feed").insertAdjacentHTML("beforeend",`<div class="pager"><button class="button" ${data.page<=1?"disabled":""} onclick="state.page=${data.page-1};loadDeleted()">上一页</button><span class="muted">第 ${data.page} / ${pages} 页 · 共 ${data.total} 条</span><button class="button" ${data.page>=pages?"disabled":""} onclick="state.page=${data.page+1};loadDeleted()">下一页</button></div>`)
+}
+async function loadEdited(){
+  $("#deletedBanner").style.display="none";
+  let q=$("#q").value.trim(),page=state.page||1;
+  let u="/api/edited?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"");
+  let data=await fetch(u).then(r=>r.json());
+  renderEdited(data)
+}
+function renderEdited(data){
+  if(!data||!data.items||!data.items.length){$("#feed").innerHTML='<div class="empty">暂无编辑记录，本地档案中没有被编辑过的消息</div>';return}
+  $("#feed").innerHTML=data.items.map(item=>{
+    let x=item.message;
+    return '<article class="msg">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">编辑 '+item.edit_count+' 次</span></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+'<div class="deleted-meta">来源：'+esc(x.ChatTitle||x.ChatID)+' · message id：'+x.MessageID+' · 原始时间：'+new Date(x.Date*1000).toLocaleString()+'</div><button class="button" style="padding:5px 9px;margin-top:8px" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看版本时间线</button><div class="edit-history" hidden></div></div></article>'
+  }).join("");
+  let pages=Math.max(1,Math.ceil(data.total/data.page_size));
+  $("#feed").insertAdjacentHTML("beforeend",'<div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+(data.page-1)+';loadEdited()">上一页</button><span class="muted">第 '+data.page+" / "+pages+" 页 · 共 "+data.total+' 条</span><button class="button" '+(data.page>=pages?"disabled":"")+' onclick="state.page='+(data.page+1)+';loadEdited()">下一页</button></div>')
+}
+async function showEdits(chat,id,button){
+  let box=button.closest(".body").querySelector(".edit-history");
+  if(!box.hidden){box.hidden=true;return}
+  let rs=await fetch("/api/edits?chat="+chat+"&id="+id).then(r=>r.json());
+  box.innerHTML=(rs&&rs.length)?'<div class="edit-timeline">'+rs.map(x=>'<div class="history-row '+(x.is_current?"current":"")+'"><b>'+(x.is_current?"Current":"Version "+x.version)+'</b> · '+new Date(x.edit_date*1000).toLocaleString()+'<div class="muted">'+esc(x.text||x.caption)+'</div></div>').join("")+'</div>':'<span class="muted">暂无编辑历史</span>';
+  box.hidden=false
+}async function loadMedia(){
+  $("#deletedBanner").style.display="none";
+  let params=new URLSearchParams(location.search),urlQ=params.get("q");if(urlQ!==null)$("#q").value=urlQ;
+  let kind=state.view.slice(0,-1),page=state.page||1,q=$("#q").value.trim();
+  let path="/media/"+state.view,u="/api/media?kind="+kind+"&page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(state.chat?"&chat="+state.chat:"");
+  history.replaceState({}, "", path+(q?"?q="+encodeURIComponent(q)+"&page="+page:"?page="+page));
+  let data=await fetch(u).then(r=>r.json());renderMedia(data)
+}
+function renderMedia(data){
+  let labels={images:"图片",videos:"视频",files:"文件"},label=labels[state.view]||"媒体";
+  if(!data||!data.items||!data.items.length){$("#feed").innerHTML='<div class="empty">暂无'+label+'</div>';return}
+  let items=data.items;
+  $("#feed").innerHTML='<div class="media-grid">'+items.map((x,i)=>{
+    let mime=(x.MediaMime||"").toLowerCase(),sha=x.MediaSHA256||"",thumb=x.ThumbnailPath?"/media/thumb/"+sha:"/media/"+sha,preview=x.PreviewPath?"/media/preview/"+sha:"/media/"+sha;
+    let ratio=(x.Width&&x.Height)?' style="aspect-ratio:'+Number(x.Width)+' / '+Number(x.Height)+'"':'';let visual=mime.startsWith("video/")?'<div class="media-video-placeholder"><span>▶</span><span>视频</span></div>':'<img loading="lazy" src="'+thumb+'"'+ratio+'>';
+    return '<article class="media-card" onclick="openMedia('+i+')">'+visual+'<div class="media-info"><div class="media-meta">'+esc(x.ChatTitle||x.ChatID)+' · '+new Date(x.Date*1000).toLocaleString()+'</div><div class="media-author">'+esc(x.SenderName||"Unknown")+(x.SenderUsername?" · @"+esc(x.SenderUsername):"")+'</div></div></article>'
+  }).join("")+'</div><div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+Math.max(1,data.page-1)+';loadMedia()">上一页</button><span class="muted">第 '+data.page+' 页 · 共 '+data.total+' 条</span><button class="button" '+(data.page>=Math.ceil(data.total/data.page_size)?"disabled":"")+' onclick="state.page='+Math.min(Math.max(1,Math.ceil(data.total/data.page_size)),data.page+1)+';loadMedia()">下一页</button></div>';
+  window.mediaItems=items
+}
+function openMedia(i){
+  let x=window.mediaItems&&window.mediaItems[i];if(!x)return;
+  let mime=(x.MediaMime||"").toLowerCase(),sha=x.MediaSHA256||"",src=x.PreviewPath?"/media/preview/"+sha:"/media/"+sha;
+  window.mediaIndex=i;window.mediaKind=mime;
+  let body=mime.startsWith("video/")?'<video controls autoplay src="'+src+'" onclick="event.stopPropagation();window.open(\'/media/'+sha+'\',\'_blank\')"></video>':'<img src="'+src+'" onclick="event.stopPropagation();window.open(\'/media/'+sha+'\',\'_blank\')">';
+  $("#light").innerHTML='<span class="lightbox-nav lightbox-prev" onclick="event.stopPropagation();mediaStep(-1)">‹</span>'+body+'<span class="lightbox-nav lightbox-next" onclick="event.stopPropagation();mediaStep(1)">›</span>';
+  $("#lightbox").style.display="flex"
+}
+function openMessageMedia(src){$("#light").innerHTML='<video controls autoplay preload="metadata" src="'+src+'"></video>';$("#lightbox").style.display="flex"}function mediaStep(delta){let n=(window.mediaItems||[]).length;if(!n)return;window.mediaIndex=(window.mediaIndex+delta+n)%n;openMedia(window.mediaIndex)}
+async function loadLinks(){
+  $("#deletedBanner").style.display="none";
+  let params=new URLSearchParams(location.search),urlQ=params.get("q");if(urlQ!==null)$("#q").value=urlQ;
+  let q=$("#q").value.trim(),domain=params.get("domain")||"",page=state.page||1;
+  let u="/api/links?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(domain?"&domain="+encodeURIComponent(domain):"");
+  let data=await fetch(u).then(r=>r.json()),domains=await fetch("/api/link_domains?limit=20"+(q?"&q="+encodeURIComponent(q):"")).then(r=>r.json());
+  renderLinks(data,domains.items||[],domain)
+}
+function renderLinks(data,domains,domain){
+  let top='<div class="link-domains"><button class="link-domain '+(!domain?"active":"")+'" onclick="setLinkDomain(\'\')">全部</button>'+domains.map(x=>'<button class="link-domain '+(domain===x.domain?"active":"")+'" onclick="setLinkDomain(\''+encodeURIComponent(x.domain)+'\')">'+esc(x.domain)+' · '+x.count+'</button>').join("")+'</div>';
+  if(!data||!data.items||!data.items.length){$("#feed").innerHTML=top+'<div class="empty">暂无链接</div>';return}
+  $("#feed").innerHTML=top+'<div class="link-list">'+data.items.map(x=>'<article class="link-card"><div class="link-row"><span class="link-favicon">'+esc((x.Domain||x.URL||"?").slice(0,1).toUpperCase())+'</span><div class="link-main"><a class="link-url" href="'+safeUrl(esc(x.URL))+'" title="'+esc(x.URL)+'" target="_blank" rel="noreferrer">'+esc(x.URL)+'</a><div class="link-snippet">'+esc(x.Text||"")+'</div><div class="link-footer"><span class="pill">'+esc(x.Domain||"")+'</span><span>'+esc(x.ChatTitle||x.ChatID)+'</span><span>· '+new Date(x.Date*1000).toLocaleString()+'</span><span>· '+esc(x.SenderName||"Unknown")+(x.SenderUsername?" @"+esc(x.SenderUsername):"")+'</span><a class="button" href="/messages?focus='+x.MessageRowID+'">跳转到消息</a></div></div></div></article>').join("")+'</div><div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+Math.max(1,data.page-1)+';loadLinks()">上一页</button><span class="muted">第 '+data.page+' 页 · 共 '+data.total+' 条</span><button class="button" '+(data.page>=Math.ceil(data.total/data.page_size)?"disabled":"")+' onclick="state.page='+Math.min(Math.max(1,Math.ceil(data.total/data.page_size)),data.page+1)+';loadLinks()">下一页</button></div>'
+}
+function setLinkDomain(domain){domain=domain?decodeURIComponent(domain):"";state.page=1;history.pushState({}, "", "/links"+(domain?"?domain="+encodeURIComponent(domain):""));loadLinks()}
+async function doSearch(){let q=$("#q").value.trim();state.page=1;if(state.view==="messages"){history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));return loadMessages()}if(state.view==="images"||state.view==="videos"||state.view==="files"){return loadMedia()}if(state.view==="links"){history.replaceState({}, "", "/links"+(q?"?q="+encodeURIComponent(q):""));return loadLinks()}if(state.view==="edits"){return loadEdited()}if(state.view==="deleted"){return loadDeleted()}refresh()}function pick(id,el){state.chat=id;state.topic=0;document.querySelectorAll(".source").forEach(x=>x.classList.remove("active"));el.classList.add("active");refresh()}function showImage(src){event.stopPropagation();$("#light").innerHTML='<img src="'+src+'">';$("#lightbox").style.display="flex"}function closeLight(){$("#lightbox").style.display="none";$("#light").innerHTML=""}document.querySelectorAll(".nav button").forEach(b=>{if(b.dataset.view===state.view)b.classList.add("active");else b.classList.remove("active");b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");if(b.dataset.view==="dest"){setRightPanel("dest");if(window.matchMedia("(max-width:1000px)").matches)document.body.classList.add("show-right");return}state.view=b.dataset.view;state.page=1;let paths={messages:"/messages",images:"/media/images",videos:"/media/videos",files:"/media/files",links:"/links",deleted:"/deleted",edits:"/edits",storage:"/storage"};if(paths[state.view])history.pushState({}, "", paths[state.view]);refresh()}});document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLight();document.body.classList.remove("show-right")}if(e.key==="Enter"&&document.activeElement===$("#q"))doSearch();if(e.key==="/"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();$("#q").focus()}if(e.key==="ArrowLeft"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(-1);if(e.key==="ArrowRight"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(1)});let loginTimer=null;
+$("#qrImg").onload=function(){this.dataset.ok="1";this.style.visibility="visible";let st=$("#qrStatus");st.textContent="等待扫码…（二维码约 30 秒自动刷新）";st.className="qr-status"};$("#qrImg").onerror=function(){this.dataset.ok="";this.style.visibility="hidden"};
+async function loadAuth(){try{let a=await fetch("/api/auth/status").then(r=>r.json());let el=$("#acct");
+ if(!a.managed){el.className="chip warn";el.textContent="⚠ 只读模式";el.title=a.hint||"在 config.yaml 配置 telegram.app-id/app-hash 后重启 serve 即可启用网页登录与管理";return}
+ if(a.authorized){el.className="chip ok";el.textContent="● "+(a.user?"@"+(a.user.username||a.user.name||a.user.id):"已登录");el.title="已登录（serve 进程同时在进行实时归档），点击查看说明"}
+ else{el.className="chip err";el.textContent="● 未登录 · 点击扫码";el.title=a.error||"点击扫码登录 Telegram 账号"}}catch(e){let el=$("#acct");el.className="chip err";el.textContent="● 状态未知"}}
+function acctClick(){if($("#acct").classList.contains("err"))openLogin();else openHelp()}
+async function openLogin(){$("#loginModal").style.display="flex";$("#qrImg").dataset.ok="";$("#qrImg").src="";$("#qrImg").style.visibility="hidden";$("#pwdRow").hidden=true;$("#qrStatus").textContent="正在生成二维码…";$("#qrStatus").className="qr-status";
+ let r=await fetch("/api/login/qr/start",{method:"POST"});
+ if(!r.ok){let t=await r.text();$("#qrStatus").textContent="✗ "+t;$("#qrStatus").className="qr-status err";return}
+ stopLoginTimer();loginTimer=setInterval(pollLoginStep,2000)}
+function qrSrc(){return "/api/login/qr/image?t="+Date.now()}
+async function pollLoginStep(){let s=await fetch("/api/login/qr/status").then(r=>r.json()).catch(()=>null);if(!s)return;let st=$("#qrStatus");
+ if(s.qr==="pending"){let img=$("#qrImg");if(!img.dataset.ok)img.src=qrSrc()}
+ else if(s.qr==="password_needed"){st.textContent="需要两步验证（2FA）云密码";st.className="qr-status";$("#qrImg").style.visibility="hidden";$("#pwdRow").hidden=false;$("#pwdInput").focus()}
+ else if(s.qr==="authorized"||s.authorized){st.textContent="✓ 登录成功"+(s.user?"："+(s.user.username?"@"+s.user.username:s.user.name):"");st.className="qr-status ok";stopLoginTimer();setTimeout(()=>{closeLogin();load()},1200)}
+ else if(s.qr==="error"){st.textContent="✗ "+(s.error||"登录失败");st.className="qr-status err";$("#qrImg").style.visibility="hidden";stopLoginTimer()}
+ else if(s.qr==="idle"&&$("#loginModal").style.display==="flex"&&$("#qrStatus").className.indexOf("ok")<0){st.textContent=s.error?"✗ "+s.error:"✗ 登录流程已结束，请重新打开";st.className="qr-status err";stopLoginTimer()}}
+function stopLoginTimer(){if(loginTimer){clearInterval(loginTimer);loginTimer=null}}
+async function submitPwd(){let p=$("#pwdInput").value;if(!p)return;let r=await fetch("/api/login/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:p})});
+ if(!r.ok){$("#qrStatus").textContent=await r.text();$("#qrStatus").className="qr-status err"}else{$("#pwdRow").hidden=true;$("#qrStatus").textContent="验证密码中…"}}
+async function cancelQR(){try{await fetch("/api/login/qr/cancel",{method:"POST"})}catch(e){}closeLogin()}
+function closeLogin(){$("#loginModal").style.display="none";$("#pwdRow").hidden=true;$("#qrImg").style.display="";stopLoginTimer();loadAuth()}
+function openAdd(){$("#addErr").textContent="";$("#addTarget").value="";$("#addSince").value="";$("#addLimit").value=1000;$("#addDownload").checked=true;$("#addKeywords").value="";$("#addExclude").value="";$("#addMaxSize").value="";$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#dlgFilter").value="";$("#addModal").style.display="flex";setTimeout(()=>$("#addTarget").focus(),50)}
+let dialogCache=[];
+async function toggleDialogs(btn){let el=$("#dlgList"),f=$("#dlgFilter");if(!el.hidden){el.hidden=true;f.hidden=true;return}
+el.hidden=false;f.hidden=false;el.innerHTML='<div class="muted" style="padding:10px">正在加载聊天列表…（首次可能需要几秒）</div>';
+try{let r=await fetch("/api/dialogs?limit=500");if(!r.ok)throw new Error(await r.text());dialogCache=await r.json()}catch(e){el.innerHTML='<div class="qr-status err" style="padding:8px">'+esc(String(e.message||e))+'</div>';return}
+renderDlgList()}
+function renderDlgList(){let q=($("#dlgFilter").value||"").trim().toLowerCase().replace(/^@/,""),el=$("#dlgList");
+let items=dialogCache.filter(d=>!q||(d.title||"").toLowerCase().includes(q)||(d.username||"").toLowerCase().includes(q));
+el.innerHTML=items.map(d=>'<div class="source" style="cursor:pointer" onclick="pickDialog('+d.id+')">'+({user:"👤",chat:"👥",supergroup:"👥",channel:"📣"}[d.type]||"💬")+' <b>'+esc(d.title||d.id)+'</b>'+(d.username?' <span class="muted">@'+esc(d.username)+'</span>':"")+'<span class="muted" style="float:right;font-size:11px">'+d.id+(d.monitored?' · <span class="pill">已监控</span>':"")+"</span></div>").join("")||'<div class="muted" style="padding:10px">无匹配项</div>'}
+function pickDialog(id){$("#addTarget").value=String(id);$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#addErr").textContent=""}
+function closeAdd(){$("#addModal").style.display="none"}function csvList(v){return (v||"").split(",").map(s=>s.trim()).filter(Boolean)}
+async function submitAdd(){let target=$("#addTarget").value.trim();if(!target){$("#addErr").textContent="请填写频道/群组地址";return}
+ let r=await fetch("/api/targets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:target,limit:Number($("#addLimit").value)||1000,since:$("#addSince").value.trim(),download_media:$("#addDownload").checked,keywords:csvList($("#addKeywords").value),exclude_keywords:csvList($("#addExclude").value),media_max_size:(Number($("#addMaxSize").value)||0)*1048576})});
+ if(!r.ok){$("#addErr").textContent=await r.text();return}
+ closeAdd();load();loadJobs()}
+async function syncSource(id){let r=await fetch("/api/monitor/sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:String(id),limit:500})});if(!r.ok)alert(await r.text());else loadJobs()}
+async function removeSource(id){if(!confirm("确定移除该监控源？已归档的数据会保留。"))return;let r=await fetch("/api/targets?chat_id="+id,{method:"DELETE"});if(!r.ok)alert(await r.text());else load()}
+let jobsTimer=null;
+async function loadJobs(){try{let response=await fetch("/api/jobs").then(r=>r.json()),js=response.items||[];let el=$("#jobs");if(!js||!js.length){el.innerHTML='<span class="muted">无进行中的任务</span>';return}
+ el.innerHTML=js.slice(0,8).map(j=>'<div class="job '+j.state+'"><b>'+esc(j.target)+'</b> <span class="muted">'+(j.kind==="backfill"?"历史回填":"补洞同步")+'</span><span class="job-state">'+(j.state==="running"?"进行中…":j.state==="done"?"✓ 完成":"✗ "+j.state)+'</span><div class="muted">归档 '+j.archived+' 条'+(j.error?" · "+esc(j.error):"")+'</div></div>').join("");
+ if(js.some(j=>j.state==="running")&&!jobsTimer){jobsTimer=setTimeout(()=>{jobsTimer=null;loadJobs()},3000)}}catch(e){}}
+function openHelp(){$("#helpModal").style.display="flex"}
+function closeHelp(){$("#helpModal").style.display="none"}
+function fmtBytes(n){if(!n&&n!==0)return"-";let u=["B","KB","MB","GB","TB"],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(i?1:0)+" "+u[i]}
+async function loadStorage(){
+  $("#deletedBanner").style.display="none";history.replaceState({},"","/storage");
+  let s=await fetch("/api/storage").then(r=>r.json()).catch(()=>null);
+  if(!s){$("#feed").innerHTML='<div class="empty">无法读取存储信息</div>';return}
+  let cards=[
+    ["数据库",fmtBytes(s.db_bytes),"SQLite 主库"],
+    ["WAL",fmtBytes(s.wal_bytes),"预写日志"],
+    ["媒体对象",fmtBytes(s.objects_bytes),s.objects_count+" 个文件（sha256 去重）"],
+    ["下载暂存",fmtBytes(s.staging_bytes),"完成后移入对象存储"],
+    ["备份",fmtBytes(s.backups_bytes),s.backups_count+" 份 · 每日自动"+(s.latest_backup?"<br>最新："+s.latest_backup.split("/").pop():"")],
+    ["磁盘可用",fmtBytes(s.free_bytes),"低于 "+fmtBytes(s.min_free_space)+" 时暂停媒体下载"]
+  ];
+  $("#feed").innerHTML='<div class="media-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">'+cards.map(c=>'<div class="media-card" style="cursor:default"><div class="media-info"><div class="muted" style="font-size:12px">'+c[0]+'</div><div class="num" style="font-size:22px;font-weight:750;margin:4px 0">'+c[1]+'</div><div class="muted" style="font-size:12px;line-height:1.5">'+c[2]+"</div></div></div>").join("")+"</div>"
+}
+let rightPanel="download",downloadTimer=null,downloadPaused=false;
+function setRightPanel(panel){
+  rightPanel=panel;
+  let panelMap={download:"#downloadPanel",stats:"#statsPanel",dest:"#destPanel",notify:"#notifyPanel"};
+  let tabMap={download:"#rightTabDownload",stats:"#rightTabStats",dest:"#rightTabDest",notify:"#rightTabNotify"};
+  Object.keys(panelMap).forEach(function(x){let p=$(panelMap[x]);if(p)p.hidden=x!==panel;let b=$(tabMap[x]);if(b)b.classList.toggle("active",x===panel)});
+  if(panel==="notify")loadNotify();
+}
+async function loadDownloadPanel(){
+  if(document.hidden)return;
+  try{
+    let s=await fetch("/api/downloads/summary").then(r=>r.json());
+    $("#dlRunning").textContent=s.running||0;$("#dlQueued").textContent=s.queued||0;$("#dlCompleted").textContent=s.completed||0;$("#dlFailed").textContent=s.failed||0;
+    downloadPaused=!!s.paused;$("#dlPauseBtn").textContent=downloadPaused?"继续下载":"暂停下载";
+    let a=await fetch("/api/downloads/active").then(r=>r.json()),items=(a&&a.items)||[],failed=(a&&a.failed)||[];
+    let el=$("#downloadActive");
+    let activeHTML=items.length?items.map(function(x){
+      let pct=x.progress_total?Math.min(100,Math.round(x.progress_done*100/x.progress_total)):0;
+      return '<div class="download-item"><div class="download-name">'+esc(x.name||"下载任务")+'</div><div class="download-progress"><i style="width:'+pct+'%"></i></div><div class="download-meta">'+(x.progress_total?(pct+"% · "):"进行中 · ")+(x.speed_bps?fmtBytes(x.speed_bps)+"/s":"下载中")+(x.eta_seconds?" · "+x.eta_seconds+"s":"")+'</div></div>'
+    }).join(""):'<div class="download-empty">当前没有运行中的下载任务</div>';
+    let failedHTML=failed.length?'<details class="download-item"><summary>失败项 · '+failed.length+'</summary>'+failed.map(function(x){return '<div style="margin-top:7px"><b>'+esc(x.name||("media #"+x.id))+'</b><div class="download-meta"><span class="error-kind '+esc(x.error_kind||"unknown")+'">'+esc(x.error_kind||"unknown")+'</span> · '+esc(x.error_detail||"")+(x.next_retry_at?" · "+new Date(x.next_retry_at*1000).toLocaleString():"")+'</div></div>'}).join("")+'</details>':"";
+    el.innerHTML=activeHTML+failedHTML;
+  }catch(e){}
+}
+async function toggleDownloadPause(){let path=downloadPaused?"/api/downloads/resume":"/api/downloads/pause";try{await fetch(path,{method:"POST"});await loadDownloadPanel()}catch(e){}}
+async function retryFailedDownloads(){try{await fetch("/api/downloads/retry_failed",{method:"POST"});await loadDownloadPanel()}catch(e){}}
+function startDownloadTimer(){if(downloadTimer)return;downloadTimer=setInterval(function(){if(!document.hidden)loadDownloadPanel()},5000)}
+document.addEventListener("visibilitychange",function(){if(!document.hidden)loadDownloadPanel()});
+async function loadNotify(){
+  try{
+    let d=await fetch("/api/notify/rules").then(r=>r.json());
+    let rules=d.rules||[],log=d.log||[];
+    $("#notifyRules").innerHTML=rules.length?rules.map(function(x){
+      let outlets=[];if(x.webhook_url)outlets.push("webhook");if(x.bot_token_masked)outlets.push("bot:"+esc(x.bot_chat_id||"?"));
+      return '<div class="download-item"><div class="download-name">'+esc(x.name)+(x.enabled?' <span class="topic-pill">启用</span>':' <span class="pill">停用</span>')+'</div><div class="download-meta">'+outlets.join(" · ")+' · 关键词 '+(x.keywords&&x.keywords.length?esc(x.keywords.join(",")):"全部")+(x.chat_ids&&x.chat_ids.length?" · 聊天 "+x.chat_ids.join(","):"")+'</div><div class="download-actions" style="margin-top:6px"><button class="button" onclick="testNotifyRule('+x.id+')">发送测试</button><button class="button" onclick="toggleNotifyRule('+x.id+','+(!x.enabled)+')">'+(x.enabled?"停用":"启用")+'</button><button class="button" onclick="delNotifyRule('+x.id+')">删除</button></div></div>'
+    }).join(""):'<div class="download-empty">暂无通知规则。匹配关键词的实时消息会推送到 Webhook / Bot。</div>';
+    $("#notifyLog").innerHTML=log.length?log.map(function(x){
+      return '<div class="download-item"><div class="download-meta">规则 '+x.rule_id+' · '+esc(x.channel||"")+' · '+(x.status==="sent"?"✅ 已发送":x.status==="failed"?"❌ 失败":"⏭ "+esc(x.status))+(x.error?" · "+esc(x.error):"")+'</div></div>'
+    }).join(""):'<div class="download-empty">暂无投递记录</div>';
+  }catch(e){}
+}
+async function submitNotifyRule(){
+  let body={name:$("#nName").value.trim(),keywords:$("#nKeywords").value.split(",").map(s=>s.trim()).filter(Boolean),exclude_keywords:$("#nExclude").value.split(",").map(s=>s.trim()).filter(Boolean),chat_ids:$("#nChats").value.split(",").map(s=>parseInt(s.trim(),10)).filter(Number.isFinite),webhook_url:$("#nWebhook").value.trim(),bot_token:$("#nBotToken").value.trim(),bot_chat_id:$("#nBotChat").value.trim()};
+  if(!body.name||( !body.webhook_url&&!(body.bot_token&&body.bot_chat_id))){alert("请填写名称，并配置 Webhook 或 Bot Token + chat_id");return}
+  try{
+    let r=await fetch("/api/notify/rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!r.ok){alert("保存失败: "+(await r.text()));return}
+    ["nName","nKeywords","nExclude","nChats","nWebhook","nBotChat","nBotToken"].forEach(id=>$("#"+id).value="");
+    loadNotify();
+  }catch(e){alert("保存失败: "+e)}
+}
+async function toggleNotifyRule(id,enabled){try{await fetch("/api/notify/rules",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,enabled:enabled})});loadNotify()}catch(e){}}
+async function delNotifyRule(id){if(!confirm("删除该通知规则？"))return;try{await fetch("/api/notify/rules?id="+id,{method:"DELETE"});loadNotify()}catch(e){}}
+async function testNotifyRule(id){
+  try{
+    let r=await fetch("/api/notify/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id})});
+    let d=await r.json();
+    if(d.status==="sent"){alert("测试通知已发送（"+d.channel+"）")}else{alert("发送"+(d.status==="failed"?"失败":"")+": "+(d.error||d.status||""))}
+    loadNotify();
+  }catch(e){alert("测试失败: "+e)}
+}
+setRightPanel("download");loadDownloadPanel();startDownloadTimer();load();
+</script></body></html>
