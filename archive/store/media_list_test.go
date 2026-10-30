@@ -119,3 +119,61 @@ func TestListMediaMessagesWithSearchSyntax(t *testing.T) {
 		t.Fatalf("search result=%+v total=%d", page.Items, page.Total)
 	}
 }
+
+// TestListMediaDedupedCollapsesReposts covers the gallery reading "301 videos"
+// when the library holds 190 files: a reward bot reposts the same clip on every
+// /start, so one frame appeared thirteen times in a row.
+func TestListMediaDedupedCollapsesReposts(t *testing.T) {
+	s := newMediaTestStore(t)
+	ctx := context.Background()
+	base := time.Unix(1700000000, 0)
+
+	post := func(msgID int, sha, text string) {
+		t.Helper()
+		m := Message{ChatID: 100, MessageID: msgID, Date: base.Add(time.Duration(msgID) * time.Second), Text: text, HasMedia: true}
+		if err := s.UpsertMessage(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+		rowID, err := s.RowID(ctx, 100, msgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.DB().ExecContext(ctx,
+			"INSERT INTO media(message_rowid,type,mime_type,size,width,height,sha256,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+			rowID, "video", "video/mp4", int64(1024), 640, 480, sha, "completed", base.Unix(), base.Unix()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	post(1, "sha-same", "编号 SW1561 一键查询")
+	post(2, "sha-same", "")
+	post(3, "sha-same", "")
+	post(4, "sha-other", "另一段")
+
+	page, err := s.ListMediaMessages(ctx, MediaFilter{Kind: MediaKindVideo, Dedupe: true, PageSize: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 {
+		t.Fatalf("total = %d, want 2 distinct files", page.Total)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("items = %d, want 2", len(page.Items))
+	}
+	got := map[int64]int{}
+	for _, it := range page.Items {
+		got[it.RowID] = it.DupCount
+	}
+	// The representative must be the OLDEST posting: that is the one carrying the
+	// caption, and the only one a reader can identify.
+	if n, ok := got[1]; !ok || n != 3 {
+		t.Fatalf("oldest row must represent the group with dup_count=3, got %+v", got)
+	}
+	// The raw view keeps every posting, so an operator can still audit reposts.
+	raw, err := s.ListMediaMessages(ctx, MediaFilter{Kind: MediaKindVideo, Dedupe: false, PageSize: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw.Total != 4 || len(raw.Items) != 4 {
+		t.Fatalf("raw total=%d items=%d, want 4 and 4", raw.Total, len(raw.Items))
+	}
+}

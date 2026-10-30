@@ -7,15 +7,29 @@ import (
 	"time"
 )
 
+// EnsureMedia queues one downloadable payload of a message.
+//
+// The conflict target is (message_rowid, source_url), not message_rowid: a post
+// carries at most one attached file but may name several external videos, each
+// of which needs its own row. Attached files keep source_url "", so they still
+// collapse to a single row per message.
 func (s *Store) EnsureMedia(ctx context.Context, m Message, meta MediaMeta) error {
 	id, err := s.RowID(ctx, m.ChatID, m.MessageID)
 	if err != nil {
 		return err
 	}
 	now := time.Now().Unix()
-	_, err = s.db.ExecContext(ctx, `INSERT INTO media(message_rowid,type,file_id_unique,file_name,mime_type,size,width,height,duration,status,ref_count,created_at,updated_at)
- VALUES(?,?,?,?,?,?,?,?,?,'pending',1,?,?)
- ON CONFLICT(message_rowid) DO UPDATE SET
+	// The row and its receive number are written together: a cancel or a busy
+	// database between the two statements would leave an unnumbered row that
+	// only a later Open() backfill notices.
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `INSERT INTO media(message_rowid,type,file_id_unique,file_name,mime_type,size,width,height,duration,source_url,status,ref_count,created_at,updated_at)
+ VALUES(?,?,?,?,?,?,?,?,?,?,'pending',1,?,?)
+ ON CONFLICT(message_rowid,source_url) DO UPDATE SET
   type=excluded.type,
   file_id_unique=COALESCE(excluded.file_id_unique,media.file_id_unique),
   file_name=COALESCE(NULLIF(excluded.file_name,''),media.file_name),
@@ -24,10 +38,23 @@ func (s *Store) EnsureMedia(ctx context.Context, m Message, meta MediaMeta) erro
   width=COALESCE(excluded.width,media.width),
   height=COALESCE(excluded.height,media.height),
   duration=COALESCE(excluded.duration,media.duration),
+  source_url=COALESCE(NULLIF(excluded.source_url,''),media.source_url),
   updated_at=excluded.updated_at`,
 		id, meta.Kind, nullStr(meta.FileUniqueID), meta.Name, meta.MIME,
-		nullableInt64(meta.Size), nullInt(meta.Width), nullInt(meta.Height), nullInt(meta.Duration), now, now)
-	return err
+		nullableInt64(meta.Size), nullInt(meta.Width), nullInt(meta.Height), nullInt(meta.Duration), meta.URL, now, now)
+	if err != nil {
+		return err
+	}
+	// Number the item now, not when the bytes arrive: the receive ledger must
+	// list something that is still queued, skipped or failing, otherwise "what
+	// did my account get today" would silently depend on download success.
+	// The UPDATE is a no-op for a row that already has a number, which keeps
+	// re-ingest (edits, rescans) from renumbering anything.
+	if _, err = tx.ExecContext(ctx, `UPDATE media SET serial=`+nextSerialExpr+`
+ WHERE message_rowid=? AND source_url=? AND serial IS NULL`, id, meta.URL); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // nullStr stores an empty string as NULL so COALESCE-based merge in the
@@ -81,7 +108,7 @@ func (s *Store) PendingMedia(ctx context.Context, limit int) ([]MediaJob, error)
 		limit = 100
 	}
 	started := time.Now()
-	rows, err := s.db.QueryContext(ctx, `SELECT media.id,m.chat_id,m.message_id,media.type,COALESCE(media.status,''),media.attempts,COALESCE(media.size,0),COALESCE(media.file_id_unique,'') FROM media JOIN messages m ON m.id=media.message_rowid WHERE media.status IN ('pending','failed') AND (media.status!='failed' OR media.next_retry_at IS NOT NULL) AND (media.next_retry_at IS NULL OR media.next_retry_at<=?) ORDER BY media.id LIMIT ?`, time.Now().Unix(), limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT media.id,m.chat_id,m.message_id,media.type,COALESCE(media.status,''),media.attempts,COALESCE(media.size,0),COALESCE(media.file_id_unique,''),COALESCE(media.source_url,'') FROM media JOIN messages m ON m.id=media.message_rowid WHERE media.status IN ('pending','failed') AND (media.status!='failed' OR media.next_retry_at IS NOT NULL) AND (media.next_retry_at IS NULL OR media.next_retry_at<=?) ORDER BY media.id LIMIT ?`, time.Now().Unix(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +116,7 @@ func (s *Store) PendingMedia(ctx context.Context, limit int) ([]MediaJob, error)
 	var out []MediaJob
 	for rows.Next() {
 		var j MediaJob
-		if err := rows.Scan(&j.ID, &j.ChatID, &j.MessageID, &j.Type, &j.Status, &j.Attempts, &j.Size, &j.FileUniqueID); err != nil {
+		if err := rows.Scan(&j.ID, &j.ChatID, &j.MessageID, &j.Type, &j.Status, &j.Attempts, &j.Size, &j.FileUniqueID, &j.URL); err != nil {
 			return nil, err
 		}
 		out = append(out, j)
@@ -106,6 +133,9 @@ type MediaJob struct {
 	Attempts     int
 	Size         int64
 	FileUniqueID string
+	// URL is set for Type=="link": the external page the video lives on. Such a
+	// job has no Telegram file to locate, so it skips the history walk entirely.
+	URL string
 }
 
 // MarkMediaRetryAfter schedules a retry at an explicit time. It is used for
@@ -135,6 +165,11 @@ func (s *Store) MarkMediaCompleted(ctx context.Context, id int64, sha string, si
 	}
 	defer tx.Rollback()
 	now := time.Now().Unix()
+	// A completed file must carry a number: assign inside the same tx so no
+	// committed row can be both downloaded and unnumbered.
+	if err = assignSerialTx(ctx, tx, id); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, "UPDATE media SET status='completed',sha256=?,original_path=?,thumbnail_path=?,preview_path=?,size=?,mime_type=?,downloaded_at=?,updated_at=?,error=NULL,error_kind=NULL,error_detail=NULL,last_error_at=NULL,next_retry_at=NULL WHERE id=?", sha, originalPath, thumbnailPath, previewPath, size, mime, now, now, id); err != nil {
 		return err
 	}
@@ -202,6 +237,71 @@ func (s *Store) MarkMediaSkippedWithError(ctx context.Context, id int64, reason,
 func (s *Store) RetryMedia(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, "UPDATE media SET status='pending',error=NULL,next_retry_at=NULL,updated_at=? WHERE id=?", time.Now().Unix(), id)
 	return err
+}
+
+// MarkMediaTargetMissing parks a media row whose chat has no monitor_targets
+// row yet.
+//
+// It stays 'pending' on purpose: the wait is a backoff, not a verdict. Attempts
+// are not touched (the download itself was never tried), and error_kind is set
+// to target_missing so WakeTargetMedia can find the row when the target is
+// finally added.
+func (s *Store) MarkMediaTargetMissing(ctx context.Context, id int64, next time.Time) error {
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx, `UPDATE media
+ SET status='pending', error='chat is not a monitored target yet; retries automatically once it is added',
+     error_kind='target_missing', error_detail=NULL, last_error_at=?, next_retry_at=?, updated_at=?
+ WHERE id=?`, now, next.Unix(), now, id)
+	return err
+}
+
+// targetMissingCond matches rows parked by MarkMediaTargetMissing, including the
+// history written before that state existed: those were stored as skipped with
+// error_kind='unknown' and the sql.ErrNoRows text, because the old code treated
+// a missing target as a permanent failure.
+const targetMissingCond = `(error_kind='target_missing' OR (status='skipped' AND error LIKE '%no rows in result set%'))`
+
+// WakeTargetMedia re-queues every media row parked because its chat was not a
+// monitored target. It is called whenever a target is added or updated, which
+// makes <monitor add> and <monitor set --enable> self-healing: adding a chat
+// that was archived before it was monitored picks the old downloads back up
+// without a manual retry.
+func (s *Store) WakeTargetMedia(ctx context.Context, chatID int64) (int64, error) {
+	res, err := s.db.ExecContext(ctx, wakeTargetMediaSQL, time.Now().Unix(), chatID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+const wakeTargetMediaSQL = `UPDATE media
+ SET status='pending', error=NULL, error_kind=NULL, error_detail=NULL, next_retry_at=NULL, updated_at=?
+ WHERE ` + targetMissingCond + `
+   AND message_rowid IN (SELECT id FROM messages WHERE chat_id=?)`
+
+// wakeTargetMediaTx is the same update inside a caller's transaction, so the
+// target row and the un-parked downloads commit together.
+func wakeTargetMediaTx(ctx context.Context, tx *sql.Tx, chatID int64) error {
+	_, err := tx.ExecContext(ctx, wakeTargetMediaSQL, time.Now().Unix(), chatID)
+	return err
+}
+
+// WakeAllMonitoredMedia is WakeTargetMedia across every target that currently
+// exists, so a single call repairs the whole archive after an upgrade. Rows
+// belonging to chats that are still unmonitored stay parked at the long
+// backoff instead of being retried pointlessly.
+func (s *Store) WakeAllMonitoredMedia(ctx context.Context) (int64, error) {
+	now := time.Now().Unix()
+	res, err := s.db.ExecContext(ctx, `UPDATE media
+ SET status='pending', error=NULL, error_kind=NULL, error_detail=NULL, next_retry_at=NULL, updated_at=?
+ WHERE `+targetMissingCond+`
+   AND message_rowid IN (SELECT id FROM messages WHERE chat_id IN (SELECT chat_id FROM monitor_targets))`, now)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 func (s *Store) MediaVariant(ctx context.Context, sha, variant string) (string, error) {

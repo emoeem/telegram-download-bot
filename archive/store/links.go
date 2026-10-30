@@ -9,7 +9,7 @@ import (
 const linkDomainLimit = 50
 
 // linkSelect is the projection behind the Links view.
-const linkSelect = `SELECT ml.url,COALESCE(ml.domain,''),m.id,m.chat_id,COALESCE(c.title,c.username,''),m.message_id,COALESCE(u.first_name||' '||u.last_name,u.username,''),COALESCE(u.username,''),m.date,COALESCE(m.text,m.caption,'') ` +
+const linkSelect = `SELECT ml.url,COALESCE(ml.domain,''),m.id,m.chat_id,COALESCE(c.title,c.username,''),m.message_id,COALESCE(u.first_name||' '||u.last_name,u.username,''),COALESCE(u.username,''),m.date,COALESCE(NULLIF(m.text,''),NULLIF(m.caption,''),'') ` +
 	`FROM message_links ml JOIN messages m ON m.id=ml.message_rowid ` +
 	`LEFT JOIN users u ON u.id=m.sender_id LEFT JOIN chats c ON c.id=m.chat_id`
 
@@ -54,12 +54,20 @@ func (s *Store) ListLinks(ctx context.Context, f LinkFilter) (LinkPage, error) {
 	}
 	domain := strings.TrimSpace(strings.ToLower(f.Domain))
 
-	where, args, _, err := s.buildSearchFilter(ctx, f.Query, SearchOptions{HasLink: true})
+	where, args, _, err := s.buildSearchFilter(ctx, f.Query, SearchOptions{}, false)
 	if err != nil {
 		return LinkPage{}, err
 	}
-	filter := " WHERE (?='' OR lower(COALESCE(ml.domain,''))=?) AND " + strings.Join(where, " AND ")
-	filterArgs := append([]any{domain, domain}, args...)
+	// The outer join on message_links already proves the message has a link, so
+	// HasLink here would add a redundant correlated EXISTS. The domain predicate
+	// is appended only when set: "?='' OR ..." defeats the index planner.
+	conds := append([]string{}, where...)
+	filterArgs := append([]any{}, args...)
+	if domain != "" {
+		conds = append(conds, "lower(COALESCE(ml.domain,''))=?")
+		filterArgs = append(filterArgs, domain)
+	}
+	filter := " WHERE " + strings.Join(conds, " AND ")
 
 	var total int
 	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM message_links ml JOIN messages m ON m.id=ml.message_rowid"+filter, filterArgs...).Scan(&total); err != nil {
@@ -88,7 +96,7 @@ func (s *Store) ListLinks(ctx context.Context, f LinkFilter) (LinkPage, error) {
 func (s *Store) ListLinkDomains(ctx context.Context, query string) ([]LinkDomainCount, error) {
 	// One aggregate query for every input: the search filter is pushed into the
 	// same WHERE clause instead of walking all link rows and counting in Go.
-	where, args, _, err := s.buildSearchFilter(ctx, query, SearchOptions{HasLink: true})
+	where, args, _, err := s.buildSearchFilter(ctx, query, SearchOptions{}, false)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,9 +12,13 @@ import (
 func (s *Store) UpsertMessage(ctx context.Context, m Message) error {
 	now := time.Now().Unix()
 	fts := m.SearchText()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO messages(chat_id,message_id,sender_id,date,edit_date,text,caption,grouped_id,reply_to_message_id,reply_to_top_id,reply_to_peer_id,thread_id,forward_from_id,forward_from_chat_id,forward_from_message_id,forward_from_name,forward_post_author,views,forwards,reply_count,has_media,pinned,raw_json,fts_text,created_at,updated_at)
- VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chat_id,message_id) DO UPDATE SET sender_id=excluded.sender_id,date=excluded.date,edit_date=excluded.edit_date,text=excluded.text,caption=excluded.caption,grouped_id=excluded.grouped_id,reply_to_message_id=excluded.reply_to_message_id,reply_to_top_id=excluded.reply_to_top_id,reply_to_peer_id=excluded.reply_to_peer_id,thread_id=excluded.thread_id,forward_from_id=excluded.forward_from_id,forward_from_chat_id=excluded.forward_from_chat_id,forward_from_message_id=excluded.forward_from_message_id,forward_from_name=excluded.forward_from_name,forward_post_author=excluded.forward_post_author,views=excluded.views,forwards=excluded.forwards,reply_count=excluded.reply_count,has_media=excluded.has_media,pinned=excluded.pinned,raw_json=excluded.raw_json,fts_text=excluded.fts_text,updated_at=excluded.updated_at`,
-		m.ChatID, m.MessageID, m.SenderID, m.Date.Unix(), nullableTime(m.EditDate), m.Text, m.Caption, nullableInt64(m.GroupedID), nullableInt64(int64(m.ReplyTo)), nullableInt64(int64(m.ReplyToTopID)), nullableInt64(m.ReplyToPeerID), nullableInt64(int64(m.ThreadID)), nullableInt64(m.ForwardFromID), nullableInt64(m.ForwardFromChatID), nullableInt64(int64(m.ForwardFromMessageID)), m.ForwardFromName, m.ForwardPostAuthor, m.Views, m.Forwards, m.ReplyCount, m.HasMedia, m.Pinned, m.Raw, fts, now, now)
+	buttons, _ := json.Marshal(m.Buttons)
+	if string(buttons) == "null" {
+		buttons = []byte("[]")
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO messages(chat_id,message_id,sender_id,date,edit_date,text,caption,grouped_id,reply_to_message_id,reply_to_top_id,reply_to_peer_id,thread_id,forward_from_id,forward_from_chat_id,forward_from_message_id,forward_from_name,forward_post_author,views,forwards,reply_count,has_media,out,pinned,raw_json,fts_text,buttons_json,created_at,updated_at)
+ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(chat_id,message_id) DO UPDATE SET sender_id=excluded.sender_id,date=excluded.date,edit_date=excluded.edit_date,text=excluded.text,caption=excluded.caption,grouped_id=excluded.grouped_id,reply_to_message_id=excluded.reply_to_message_id,reply_to_top_id=excluded.reply_to_top_id,reply_to_peer_id=excluded.reply_to_peer_id,thread_id=excluded.thread_id,forward_from_id=excluded.forward_from_id,forward_from_chat_id=excluded.forward_from_chat_id,forward_from_message_id=excluded.forward_from_message_id,forward_from_name=excluded.forward_from_name,forward_post_author=excluded.forward_post_author,views=excluded.views,forwards=excluded.forwards,reply_count=excluded.reply_count,has_media=excluded.has_media,out=excluded.out,pinned=excluded.pinned,raw_json=excluded.raw_json,fts_text=excluded.fts_text,buttons_json=excluded.buttons_json,updated_at=excluded.updated_at`,
+		m.ChatID, m.MessageID, m.SenderID, m.Date.Unix(), nullableTime(m.EditDate), m.Text, m.Caption, nullableInt64(m.GroupedID), nullableInt64(int64(m.ReplyTo)), nullableInt64(int64(m.ReplyToTopID)), nullableInt64(m.ReplyToPeerID), nullableInt64(int64(m.ThreadID)), nullableInt64(m.ForwardFromID), nullableInt64(m.ForwardFromChatID), nullableInt64(int64(m.ForwardFromMessageID)), m.ForwardFromName, m.ForwardPostAuthor, m.Views, m.Forwards, m.ReplyCount, m.HasMedia, m.Out, m.Pinned, m.Raw, fts, string(buttons), now, now)
 	return err
 }
 func nullableTime(t *time.Time) any {
@@ -218,4 +223,105 @@ func (s *Store) Edits(ctx context.Context, chatID int64, msgID int) ([]EditView,
 		out = append(out, view)
 	}
 	return out, nil
+}
+
+// SoftDeleteRowIDs marks messages deleted in the local archive only. Telegram
+// is untouched: this is the "hide it from my views" operation an operator
+// reaches for when the remote copy must stay where it is.
+//
+// The row id is the archive's own identity, so callers do not have to pair a
+// chat id with a message id they may no longer have.
+func (s *Store) SoftDeleteRowIDs(ctx context.Context, rowIDs []int64) (int64, error) {
+	if len(rowIDs) == 0 {
+		return 0, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	now := time.Now().Unix()
+	var n int64
+	for _, rowID := range rowIDs {
+		if rowID <= 0 {
+			continue
+		}
+		res, err := tx.ExecContext(ctx, "UPDATE messages SET deleted=1,deleted_at=?,updated_at=? WHERE id=?", now, now, rowID)
+		if err != nil {
+			return n, err
+		}
+		// A row that was already deleted still counts as success: the caller
+		// asked for an end state, not for a transition.
+		if affected, _ := res.RowsAffected(); affected > 0 {
+			n++
+		}
+	}
+	return n, tx.Commit()
+}
+
+// RestoreRowIDs undoes SoftDeleteRowIDs.
+func (s *Store) RestoreRowIDs(ctx context.Context, rowIDs []int64) (int64, error) {
+	if len(rowIDs) == 0 {
+		return 0, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	now := time.Now().Unix()
+	var n int64
+	for _, rowID := range rowIDs {
+		if rowID <= 0 {
+			continue
+		}
+		res, err := tx.ExecContext(ctx, "UPDATE messages SET deleted=0,deleted_at=NULL,updated_at=? WHERE id=?", now, rowID)
+		if err != nil {
+			return n, err
+		}
+		if affected, _ := res.RowsAffected(); affected > 0 {
+			n++
+		}
+	}
+	return n, tx.Commit()
+}
+
+// DeleteMessageHard removes one message row plus its media rows and reports the
+// object files that lost their last reference. The caller unlinks them through
+// ApplyPurge, which keeps the file layer in one place.
+//
+// The whole removal is one transaction so a crash cannot leave a message row
+// pointing at already-released objects. Never-numbered media goes through the
+// same path: it has no object yet, so only the row disappears.
+func (s *Store) DeleteMessageHard(ctx context.Context, rowID int64) (PurgeReport, error) {
+	rep := PurgeReport{}
+	if rowID <= 0 {
+		return rep, fmt.Errorf("row id is required")
+	}
+	items, err := s.purgeRowsForMessage(ctx, rowID)
+	if err != nil {
+		return rep, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return rep, err
+	}
+	defer tx.Rollback()
+	files, err := purgeItemsTx(ctx, tx, items, []int64{rowID})
+	if err != nil {
+		return rep, err
+	}
+	if err := tx.Commit(); err != nil {
+		return rep, err
+	}
+	for _, it := range items {
+		rep.Media++
+		rep.Bytes += it.size
+		if it.serial > 0 {
+			rep.Serials = append(rep.Serials, it.serial)
+		}
+	}
+	rep.Messages = 1
+	rep.Files = files
+	return rep, nil
 }
