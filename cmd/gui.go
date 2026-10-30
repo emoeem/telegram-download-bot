@@ -1,3 +1,5 @@
+//go:build cgo
+
 package cmd
 
 import (
@@ -6,7 +8,8 @@ import (
 	"github.com/iyear/tdl/app/desktop"
 )
 
-// NewGUI starts the local Fyne desktop downloader.
+// NewGUI starts the local Fyne desktop downloader. Fyne requires cgo (OpenGL),
+// so CGO_ENABLED=0 builds get the stub in gui_nocgo.go instead.
 func NewGUI() *cobra.Command {
 	return &cobra.Command{
 		Use:     "gui",

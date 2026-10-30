@@ -102,9 +102,17 @@ func New() *cobra.Command {
 			// extension manager client proxy
 			var dialer proxy.ContextDialer = proxy.Direct
 			if p := viper.GetString(consts.FlagProxy); p != "" {
-				if t, err := netutil.NewProxy(p); err == nil {
-					dialer = t
+				// A malformed --proxy must fail loudly: falling back to a direct
+				// connection would silently expose the user's real IP address.
+				newProxy := netutil.NewProxy
+				if viper.GetBool(consts.FlagProxyInsecure) {
+					newProxy = netutil.NewProxyInsecure
 				}
+				d, err := newProxy(p)
+				if err != nil {
+					return errors.Wrap(err, "parse proxy")
+				}
+				dialer = d
 			}
 			em.SetClient(&http.Client{Transport: &http.Transport{
 				DialContext: dialer.DialContext,
@@ -139,7 +147,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(NewVersion(), NewLogin(), NewDownload(), NewForward(),
 		NewChat(), NewUpload(), NewBackup(), NewRecover(), NewMigrate(),
-		NewGen(), NewGUI(), NewExtension(em))
+		NewGen(), NewGUI(), NewArchive(), NewExtension(em))
 
 	// append extension command to root
 	exts, _ := em.List(context.Background(), false)
@@ -153,6 +161,7 @@ func New() *cobra.Command {
 			strings.Join(kv.DriverNames(), ",")))
 
 	cmd.PersistentFlags().String(consts.FlagProxy, "", "proxy address, format: protocol://username:password@host:port")
+	cmd.PersistentFlags().Bool(consts.FlagProxyInsecure, false, "skip TLS verification of the proxy's own certificate (only for https:// proxies using a self-signed cert)")
 	cmd.PersistentFlags().StringP(consts.FlagNamespace, "n", "default", "namespace for Telegram session")
 	cmd.PersistentFlags().Bool(consts.FlagDebug, false, "enable debug mode")
 
@@ -221,6 +230,7 @@ func tOptions(ctx context.Context) (tclient.Options, error) {
 	o := tclient.Options{
 		KV:               kvd,
 		Proxy:            viper.GetString(consts.FlagProxy),
+		ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 		NTP:              viper.GetString(consts.FlagNTP),
 		ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 		UpdateHandler:    nil,

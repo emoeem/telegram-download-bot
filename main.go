@@ -5,10 +5,12 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 
 	surveyterm "github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/fatih/color"
 	"github.com/go-faster/errors"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.etcd.io/bbolt"
 
@@ -17,12 +19,14 @@ import (
 )
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	loadConfig()
 
-	if token := strings.TrimSpace(viper.GetString("bot.token")); token != "" && !isDesktopCommand(os.Args[1:]) {
+	root := cmd.New()
+
+	if token := strings.TrimSpace(viper.GetString("bot.token")); token != "" && !isLocalOnlyCommand(root, os.Args[1:]) {
 		if err := tgbot.Run(ctx, tgbot.Options{
 			Token:      token,
 			Debug:      viper.GetBool("bot.debug"),
@@ -39,7 +43,7 @@ func main() {
 		surveyterm.InterruptErr: "Interrupted",
 	}
 
-	if err := cmd.New().ExecuteContext(ctx); err != nil {
+	if err := root.ExecuteContext(ctx); err != nil {
 		for e, m := range humanizeErrors {
 			if errors.Is(err, e) {
 				color.Red("%s", m)
@@ -52,9 +56,21 @@ func main() {
 	}
 }
 
-func isDesktopCommand(args []string) bool {
-	for _, arg := range args {
-		if arg == "gui" || arg == "desktop" {
+// isLocalOnlyCommand reports whether the invocation resolves to a command that
+// must run in the local terminal (gui, desktop, archive) rather than hand over
+// to the Telegram bot.
+//
+// Cobra resolves the command tree, so flag values are never mistaken for a
+// command name: `tdl dl -n archive` targets `dl`, not `archive`, which a plain
+// scan of os.Args would get wrong.
+func isLocalOnlyCommand(root *cobra.Command, args []string) bool {
+	target, _, err := root.Find(args)
+	if err != nil {
+		return false
+	}
+	for c := target; c != nil; c = c.Parent() {
+		switch c.Name() {
+		case "gui", "desktop", "archive":
 			return true
 		}
 	}
