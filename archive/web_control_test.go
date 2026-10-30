@@ -56,6 +56,9 @@ func TestWebControlUnmanaged(t *testing.T) {
 		{http.MethodGet, "/api/jobs", ""},
 	} {
 		req, _ := http.NewRequest(tc.method, ts.URL+tc.path, strings.NewReader(tc.body))
+		if tc.body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
@@ -121,6 +124,7 @@ func TestWebControlControllerValidation(t *testing.T) {
 	}
 
 	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/api/targets", bytes.NewBufferString(`{"target":"@foo"}`))
+	req.Header.Set("Content-Type", "application/json")
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -136,6 +140,7 @@ func TestWebControlControllerValidation(t *testing.T) {
 
 	// add target validation: missing target field is a 400, not a 409.
 	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/api/targets", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

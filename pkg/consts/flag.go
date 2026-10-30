@@ -3,6 +3,7 @@ package consts
 const (
 	FlagStorage          = "storage"
 	FlagProxy            = "proxy"
+	FlagProxyInsecure    = "proxy-insecure"
 	FlagNamespace        = "ns"
 	FlagDebug            = "debug"
 	FlagPartSize         = "size" // Deprecated: all part size should be set to maximum by default

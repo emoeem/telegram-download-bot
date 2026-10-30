@@ -42,6 +42,12 @@ type Controller struct {
 	collector *Collector
 	supCancel context.CancelFunc
 
+	// One clicker and one queue worker live for the whole controller: the
+	// supervisor reconnects repeatedly, and a per-connection clicker would
+	// spawn a second worker every time it did.
+	clicker   *AutoClicker
+	queueOnce sync.Once
+
 	stateMu sync.RWMutex
 	state   CtrlState
 
@@ -305,6 +311,12 @@ func (c *Controller) MediaPaused() bool          { return c.mediaPaused.Load() }
 // backfillTargets closes tail gaps and re-scans every enabled target.
 func (c *Controller) backfillTargets(ctx context.Context, rt *Runtime, col *Collector) {
 	RescanTargets(ctx, c.Store, rt, col)
+	// The material layer feeds export and publish, so it is refreshed on the
+	// same cadence as the rescan that produced new raw messages. A failure here
+	// must not abort the backfill: the archive itself is already consistent.
+	if _, err := RefreshMaterialLayer(ctx, c.Store); err != nil {
+		fmt.Fprintf(os.Stderr, "archive material: %v\n", err)
+	}
 }
 
 func (c *Controller) Close() {
@@ -380,6 +392,14 @@ func (c *Controller) ensureSupervisor() {
 	}
 	col.Exporter = NewExporter(rt, c.Store)
 	col.Notifier = NewNotifier(c.Store)
+	if c.clicker == nil {
+		c.clicker = NewAutoClicker(c.Store, col.Notifier, func() *Runtime {
+			rt, _ := c.runtimeForTask()
+			return rt
+		})
+	}
+	col.AutoClick = c.clicker
+	c.queueOnce.Do(func() { c.clicker.StartQueue(c.ctx) })
 	c.rt, c.collector, c.supCancel = rt, col, cancel
 	c.mu.Unlock()
 
@@ -502,6 +522,7 @@ func (c *Controller) runQRLogin(ctx context.Context) {
 		AppID: c.AppID, AppHash: c.AppHash,
 		Session:          cstorage.NewSession(c.KV, false),
 		Proxy:            viper.GetString(consts.FlagProxy),
+		ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 		ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 		UpdateHandler:    d,
 	})
@@ -600,13 +621,15 @@ func (c *Controller) CancelQR() {
 
 // AddMonitorOptions carries everything the web add-target form collects.
 type AddMonitorOptions struct {
-	Target          string
-	Since           string
-	Limit           int
-	Download        bool
-	Keywords        []string
-	ExcludeKeywords []string
-	MediaMaxSize    int64
+	Target            string
+	Since             string
+	Limit             int
+	Download          bool
+	Keywords          []string
+	ExcludeKeywords   []string
+	MediaMaxSize      int64
+	AutoClick         bool
+	AutoClickKeywords []string
 }
 
 // AddMonitor registers a target and starts a background backfill job.
@@ -637,6 +660,7 @@ func (c *Controller) AddMonitor(opts AddMonitorOptions) (*Job, error) {
 		ArchiveText: true, ArchiveMedia: true, ArchiveFiles: true,
 		DownloadMedia: download, ArchiveMode: "local", Since: sval,
 		Keywords: opts.Keywords, ExcludeKeywords: opts.ExcludeKeywords, MediaMaxSize: opts.MediaMaxSize,
+		AutoClick: opts.AutoClick, AutoClickKeywords: opts.AutoClickKeywords,
 	}
 	if err := c.Store.AddTarget(ctx, t); err != nil {
 		return nil, err

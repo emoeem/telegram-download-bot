@@ -72,8 +72,33 @@ func TestWebAuthBasicRequired(t *testing.T) {
 	}
 }
 
-func TestWebAuthHealthzExempt(t *testing.T) {
+func TestWebAuthHealthzRequiresAuth(t *testing.T) {
 	_, ts := newAuthTestServer(t, WebAuthConfig{Token: "secret-token"})
+	for _, path := range []string{"/healthz", "/readyz"} {
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d body=%s", path, resp.StatusCode, body)
+		}
+	}
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/healthz", nil)
+	req.Header.Set("Authorization", "Bearer secret-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("authorized /healthz status=%d", resp.StatusCode)
+	}
+}
+
+func TestWebAuthHealthzOpenWithoutAuth(t *testing.T) {
+	_, ts := newAuthTestServer(t, WebAuthConfig{})
 	for _, path := range []string{"/healthz", "/readyz"} {
 		resp, err := http.Get(ts.URL + path)
 		if err != nil {

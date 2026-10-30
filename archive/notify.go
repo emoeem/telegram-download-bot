@@ -179,12 +179,10 @@ type notifyPayload struct {
 }
 
 // preview renders the human-readable text sent to Telegram Bot API chats.
+// Truncation counts runes, not bytes: slicing a Chinese message at a byte
+// offset can cut a UTF-8 sequence in half and the Bot API rejects the payload.
 func (p notifyPayload) preview() string {
-	head := p.Text
-	if len(head) > notifyTextLimit {
-		head = head[:notifyTextLimit] + "…"
-	}
-	return head
+	return truncateRunes(p.Text, notifyTextLimit)
 }
 
 func (n *Notifier) buildPayload(ctx context.Context, r store.NotifyRule, m store.Message) notifyPayload {
@@ -203,6 +201,11 @@ func (n *Notifier) buildPayload(ctx context.Context, r store.NotifyRule, m store
 }
 
 func (n *Notifier) sendWebhook(ctx context.Context, r store.NotifyRule, payload notifyPayload) error {
+	// Rules already stored before write-time validation existed may still carry
+	// a non-http(s) URL, so delivery refuses to build the request for them.
+	if !ValidNotifyWebhook(r.WebhookURL) {
+		return fmt.Errorf("webhook url %q is not http(s)", r.WebhookURL)
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err

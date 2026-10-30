@@ -64,7 +64,7 @@ func orEmptyInt64(v []int64) []int64 {
 func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rs, err := w.Store.NotifyRules(r.Context())
+		rs, err := w.store().NotifyRules(r.Context())
 		if err != nil {
 			w.serverError(rw, err)
 			return
@@ -73,7 +73,7 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 		for _, r := range rs {
 			out = append(out, toNotifyRuleJSON(r))
 		}
-		logs, _ := w.Store.RecentNotifyDeliveries(r.Context(), 30)
+		logs, _ := w.store().RecentNotifyDeliveries(r.Context(), 30)
 		if logs == nil {
 			logs = []store.NotifyDelivery{}
 		}
@@ -107,11 +107,11 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "webhook_url or bot_token+bot_chat_id is required", http.StatusBadRequest)
 			return
 		}
-		if !validNotifyWebhook(req.WebhookURL) {
+		if !ValidNotifyWebhook(req.WebhookURL) {
 			http.Error(rw, "webhook_url must be http(s)", http.StatusBadRequest)
 			return
 		}
-		id, err := w.Store.AddNotifyRule(r.Context(), store.NotifyRule{
+		id, err := w.store().AddNotifyRule(r.Context(), store.NotifyRule{
 			Name: req.Name, Keywords: req.Keywords, ExcludeKeywords: req.ExcludeKeywords, ChatIDs: req.ChatIDs,
 			WebhookURL: req.WebhookURL, BotToken: req.BotToken, BotChatID: req.BotChatID, Enabled: true,
 		})
@@ -146,7 +146,7 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 		if req.Enabled != nil {
 			nr.Enabled = *req.Enabled
 		} else {
-			cur, err := w.Store.NotifyRule(r.Context(), req.ID)
+			cur, err := w.store().NotifyRule(r.Context(), req.ID)
 			if err != nil {
 				http.Error(rw, err.Error(), http.StatusNotFound)
 				return
@@ -162,11 +162,11 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 		if req.ChatIDs != nil {
 			nr.ChatIDs = *req.ChatIDs
 		}
-		if err := w.Store.UpdateNotifyRule(r.Context(), req.ID, nr); err != nil {
+		if err := w.store().UpdateNotifyRule(r.Context(), req.ID, nr); err != nil {
 			http.Error(rw, err.Error(), http.StatusNotFound)
 			return
 		}
-		cur, err := w.Store.NotifyRule(r.Context(), req.ID)
+		cur, err := w.store().NotifyRule(r.Context(), req.ID)
 		if err != nil {
 			w.serverError(rw, err)
 			return
@@ -181,7 +181,7 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "id is required", http.StatusBadRequest)
 			return
 		}
-		if err := w.Store.RemoveNotifyRule(r.Context(), id); err != nil {
+		if err := w.store().RemoveNotifyRule(r.Context(), id); err != nil {
 			w.serverError(rw, err)
 			return
 		}
@@ -191,9 +191,11 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// validNotifyWebhook restricts webhooks to http(s) so a crafted rule cannot
-// make the server POST into exotic schemes (file:, gopher:, ...).
-func validNotifyWebhook(u string) bool {
+// ValidNotifyWebhook restricts webhooks to http(s) so a crafted rule cannot
+// make the server POST into exotic schemes (file:, gopher:, ...). It is the
+// single validation point shared by the Web API, the CLI and delivery, so a
+// rule cannot bypass it by being created through a different entry point.
+func ValidNotifyWebhook(u string) bool {
 	if u == "" {
 		return true
 	}
@@ -222,7 +224,7 @@ func (w *WebServer) notifyTest(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "id is required", http.StatusBadRequest)
 		return
 	}
-	rule, err := w.Store.NotifyRule(r.Context(), req.ID)
+	rule, err := w.store().NotifyRule(r.Context(), req.ID)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusNotFound)
 		return
@@ -231,6 +233,6 @@ func (w *WebServer) notifyTest(rw http.ResponseWriter, r *http.Request) {
 		req.Text = "tdl archive notify test: 如果收到这条消息，说明规则 " + rule.Name + " 的通知链路是通的。"
 	}
 	m := store.Message{MessageID: 0, Date: time.Now(), Text: req.Text}
-	d := NewNotifier(w.Store).DispatchTo(r.Context(), rule, m)
+	d := NewNotifier(w.store()).DispatchTo(r.Context(), rule, m)
 	writeJSON(rw, map[string]any{"status": d.Status, "channel": d.Channel, "error": d.Error})
 }

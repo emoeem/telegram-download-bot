@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/iyear/tdl/archive/store"
 )
@@ -159,5 +161,18 @@ func TestDispatchToRecordsOutcome(t *testing.T) {
 	d := NewNotifier(s).DispatchTo(ctx, rule, store.Message{ChatID: 3, MessageID: 9, Text: "test"})
 	if d.Status != "sent" || d.RuleID != id || d.MessageID != 9 {
 		t.Fatalf("delivery = %+v", d)
+	}
+}
+
+// Telegram counts characters, not bytes. A byte-truncated Chinese preview ends
+// mid-rune and the Bot API rejects the whole message.
+func TestNotifyPreviewTruncatesOnRuneBoundary(t *testing.T) {
+	p := notifyPayload{Text: strings.Repeat("中", notifyTextLimit+50)}
+	got := p.preview()
+	if !utf8.ValidString(got) {
+		t.Fatal("preview is not valid UTF-8")
+	}
+	if n := utf8.RuneCountInString(strings.TrimSuffix(got, "…")); n != notifyTextLimit {
+		t.Fatalf("kept %d runes, want %d", n, notifyTextLimit)
 	}
 }

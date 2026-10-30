@@ -2,11 +2,15 @@ package archive
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"log/slog"
+	"strings"
+	"time"
+
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/iyear/tdl/archive/store"
-	"strings"
-	"time"
 )
 
 type Collector struct {
@@ -15,6 +19,9 @@ type Collector struct {
 	// Notifier, when set, receives every realtime-archived message that passed
 	// Accept; notification is best-effort and never fails the archive write.
 	Notifier *Notifier
+	// AutoClick, when set, presses inline buttons / opens t.me links on
+	// auto-click enabled targets and captures the bot's response.
+	AutoClick *AutoClicker
 }
 
 func NewCollector(s *store.Store) *Collector { return &Collector{Store: s} }
@@ -169,6 +176,9 @@ func (c *Collector) Backfill(ctx context.Context, rt *Runtime, t store.Target, o
 				return n, err
 			}
 		}
+		if err := c.ensureLinkMedia(ctx, m, msg, t); err != nil {
+			return n, err
+		}
 		if c.Exporter != nil {
 			if m.GroupedID != 0 {
 				if pendingGroupID != 0 && pendingGroupID != m.GroupedID {
@@ -295,40 +305,76 @@ func (c *Collector) SaveUpdateGroup(ctx context.Context, e tg.Entities, messages
 		return err
 	}
 	accepted := make([]store.Message, 0, len(messages))
+	// groupItem pairs each parsed message with its target so the auto-click
+	// pass does not parse (and re-marshal the raw JSON) a second time.
+	type groupItem struct {
+		m        *tg.Message
+		x        store.Message
+		t        store.Target
+		accepted bool
+	}
+	items := make([]groupItem, 0, len(messages))
 	for _, m := range messages {
 		x := store.FromTG(m)
 		if x.ChatID == 0 {
 			continue
 		}
-		t, err := c.Store.Target(ctx, x.ChatID)
-		if err != nil || !c.Accept(t, x) {
-			continue
+		item := groupItem{m: m, x: x}
+		t, ok, terr := c.target(ctx, x.ChatID)
+		if terr != nil {
+			return terr
 		}
-		if err := c.Store.UpsertMessage(ctx, x); err != nil {
-			return err
-		}
-		if err := c.Store.RefreshMetadata(ctx, x); err != nil {
-			return err
-		}
-		if meta, ok := store.MediaInfo(m); ok && t.ArchiveMedia && (t.DownloadMedia || t.ArchiveMode == "both") {
-			if err := c.Store.EnsureMedia(ctx, x, meta); err != nil {
+		if ok && c.Accept(t, x) {
+			item.t, item.accepted = t, true
+			if err := c.Store.UpsertMessage(ctx, x); err != nil {
 				return err
 			}
+			if err := c.Store.RefreshMetadata(ctx, x); err != nil {
+				return err
+			}
+			if meta, ok := store.MediaInfo(m); ok && t.ArchiveMedia && (t.DownloadMedia || t.ArchiveMode == "both") {
+				if err := c.Store.EnsureMedia(ctx, x, meta); err != nil {
+					return err
+				}
+			}
+			if err := c.ensureLinkMedia(ctx, x, m, t); err != nil {
+				return err
+			}
+			accepted = append(accepted, x)
 		}
-		accepted = append(accepted, x)
+		items = append(items, item)
 	}
 	if c.Notifier != nil {
 		for _, x := range accepted {
 			c.Notifier.DispatchAsync(x)
 		}
 	}
+	if c.AutoClick != nil {
+		for _, it := range items {
+			if it.m.Out {
+				continue
+			}
+			// Response capture listens on every message in the window (even
+			// ones Accept would exclude); clicking stays limited to accepted
+			// messages so keyword filters are honored.
+			if c.AutoClick.Observe(ctx, it.x) {
+				continue
+			}
+			if !it.accepted {
+				continue
+			}
+			c.AutoClick.OnNewMessage(ctx, it.t, it.x, it.m)
+		}
+	}
 	if c.Exporter == nil || len(accepted) == 0 {
 		return nil
 	}
 	if len(accepted) == 1 {
-		return c.Exporter.ExportMessage(ctx, accepted[0])
+		logExportFailure(accepted[0].ChatID, accepted[0].MessageID, c.Exporter.ExportMessage(ctx, accepted[0]))
+		return nil
 	}
-	return c.Exporter.channel.ExportMessages(ctx, accepted)
+	logExportFailure(accepted[0].ChatID, accepted[0].MessageID, c.Exporter.channel.ExportMessages(ctx, accepted))
+	return nil
 }
 
 func (c *Collector) SaveUpdate(ctx context.Context, e tg.Entities, m *tg.Message) error {
@@ -339,11 +385,17 @@ func (c *Collector) SaveUpdate(ctx context.Context, e tg.Entities, m *tg.Message
 	if x.ChatID == 0 {
 		return nil
 	}
-	t, err := c.Store.Target(ctx, x.ChatID)
-	if err != nil {
-		return nil
+	// A message inside an open response-capture window is the outcome of a
+	// click we made; forward it and do not click on it again.
+	var captured bool
+	if c.AutoClick != nil && !m.Out {
+		captured = c.AutoClick.Observe(ctx, x)
 	}
-	if !c.Accept(t, x) {
+	t, ok, err := c.target(ctx, x.ChatID)
+	if err != nil {
+		return err
+	}
+	if !ok || !c.Accept(t, x) {
 		return nil
 	}
 	if err := c.Store.UpsertMessage(ctx, x); err != nil {
@@ -357,11 +409,17 @@ func (c *Collector) SaveUpdate(ctx context.Context, e tg.Entities, m *tg.Message
 			return err
 		}
 	}
+	if err := c.ensureLinkMedia(ctx, x, m, t); err != nil {
+		return err
+	}
 	if c.Notifier != nil {
 		c.Notifier.DispatchAsync(x)
 	}
+	if c.AutoClick != nil && !m.Out && !captured {
+		c.AutoClick.OnNewMessage(ctx, t, x, m)
+	}
 	if c.Exporter != nil {
-		return c.Exporter.Export(ctx, m, x.ChatID)
+		logExportFailure(x.ChatID, x.MessageID, c.Exporter.Export(ctx, m, x.ChatID))
 	}
 	return nil
 }
@@ -386,11 +444,38 @@ func (c *Collector) SaveService(ctx context.Context, e tg.Entities, m *tg.Messag
 	if chatID == 0 {
 		return nil
 	}
-	t, err := c.Store.Target(ctx, chatID)
-	if err != nil || !t.Enabled {
-		return nil
+	t, ok, err := c.target(ctx, chatID)
+	if err != nil || !ok || !t.Enabled {
+		return err
 	}
 	return c.Store.SaveMessageService(ctx, m)
+}
+
+// target resolves the monitor rule for a chat. A missing row means "not
+// monitored" and is not an error; anything else is a real read failure that must
+// not be mistaken for a filter miss, or a broken database silently stops
+// realtime archiving.
+func (c *Collector) target(ctx context.Context, chatID int64) (store.Target, bool, error) {
+	t, err := c.Store.Target(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.Target{}, false, nil
+	}
+	if err != nil {
+		return store.Target{}, false, err
+	}
+	return t, true, nil
+}
+
+// logExportFailure reports an export error without failing the update: the
+// message is already archived and gotd treats a handler error as a reason to
+// reset the connection.
+func logExportFailure(chatID int64, messageID int, err error) {
+	if err == nil {
+		return
+	}
+	slog.Default().Warn("archive: export failed",
+		slog.Int64("chat_id", chatID), slog.Int("message_id", messageID),
+		slog.String("error", err.Error()))
 }
 
 func (c *Collector) SaveEdit(ctx context.Context, e tg.Entities, m *tg.Message) error {
@@ -401,11 +486,11 @@ func (c *Collector) SaveEdit(ctx context.Context, e tg.Entities, m *tg.Message) 
 	if x.ChatID == 0 {
 		return nil
 	}
-	t, err := c.Store.Target(ctx, x.ChatID)
+	t, ok, err := c.target(ctx, x.ChatID)
 	if err != nil {
-		return nil
+		return err
 	}
-	if !c.Accept(t, x) {
+	if !ok || !c.Accept(t, x) {
 		return nil
 	}
 	if x.EditDate != nil {
@@ -422,7 +507,14 @@ func (c *Collector) SaveEdit(ctx context.Context, e tg.Entities, m *tg.Message) 
 		return err
 	}
 	if c.Exporter != nil {
-		return c.Exporter.channel.MirrorEdit(ctx, x.ChatID, x.MessageID)
+		if err := c.Exporter.channel.MirrorEdit(ctx, x.ChatID, x.MessageID); err != nil {
+			// The edit is archived. An export failure must not travel back into
+			// the update handler: gotd would drop the connection over a mirror
+			// that can be retried independently.
+			slog.Default().Warn("archive: mirror edit failed",
+				slog.Int64("chat_id", x.ChatID), slog.Int("message_id", x.MessageID),
+				slog.String("error", err.Error()))
+		}
 	}
 	return nil
 }
@@ -449,4 +541,25 @@ func (c *Collector) hasTelegramDestination(ctx context.Context) bool {
 		}
 	}
 	return false
+}
+
+// ensureLinkMedia queues the external videos a message's own text points at.
+//
+// This covers the half MediaInfo structurally cannot see. Telegram only builds
+// a MessageMediaWebPage when it decided to render a preview; a channel with
+// previews turned off — or one whose preview fetch failed on the server — posts
+// "看这个 https://youtu.be/x" as pure text, with the media field empty. Without
+// this pass the sentence is archived and the video it advertises is dropped.
+//
+// Each URL lands as its own media row, so one post can carry several.
+func (c *Collector) ensureLinkMedia(ctx context.Context, m store.Message, msg *tg.Message, t store.Target) error {
+	if !t.ArchiveMedia || (!t.DownloadMedia && t.ArchiveMode != "both") {
+		return nil
+	}
+	for _, meta := range store.LinkMedias(msg) {
+		if err := c.Store.EnsureMedia(ctx, m, meta); err != nil {
+			return err
+		}
+	}
+	return nil
 }

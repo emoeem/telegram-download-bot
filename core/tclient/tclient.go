@@ -35,6 +35,7 @@ type Options struct {
 	Session          telegram.SessionStorage
 	Middlewares      []telegram.Middleware
 	Proxy            string
+	ProxyInsecure    bool
 	NTP              string
 	ReconnectTimeout time.Duration
 	UpdateHandler    telegram.UpdateHandler
@@ -56,7 +57,11 @@ func New(ctx context.Context, o Options) (*telegram.Client, error) {
 	// process proxy
 	var dialer dcs.DialFunc = proxy.Direct.DialContext
 	if p := o.Proxy; p != "" {
-		d, err := netutil.NewProxy(p)
+		newProxy := netutil.NewProxy
+		if o.ProxyInsecure {
+			newProxy = netutil.NewProxyInsecure
+		}
+		d, err := newProxy(p)
 		if err != nil {
 			return nil, errors.Wrap(err, "get dialer")
 		}

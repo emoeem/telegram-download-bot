@@ -30,6 +30,7 @@ func Code(ctx context.Context) error {
 	c, err := tclient.New(ctx, tclient.Options{
 		KV:               kvd,
 		Proxy:            viper.GetString(consts.FlagProxy),
+		ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 		NTP:              viper.GetString(consts.FlagNTP),
 		ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 		UpdateHandler:    nil,

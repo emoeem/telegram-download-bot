@@ -2,8 +2,11 @@ package archive
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -319,8 +322,13 @@ func (e *ChannelExporter) exportOne(ctx context.Context, msg store.Message, dest
 	if err != nil {
 		return err
 	}
-	if _, err = e.Store.Exported(ctx, row, dest.ID); err == nil {
+	// A record already marked sent means this destination is done. Any other
+	// error (a busy DB, a canceled query) must not be read as "not exported":
+	// being wrong in that direction duplicates the post.
+	if _, eerr := e.Store.Exported(ctx, row, dest.ID); eerr == nil {
 		return nil
+	} else if !errors.Is(eerr, sql.ErrNoRows) {
+		return eerr
 	}
 	source, err := Resolve(ctx, e.Runtime, fmt.Sprint(msg.ChatID))
 	if err != nil {
@@ -359,7 +367,13 @@ func (e *ChannelExporter) exportOne(ctx context.Context, msg store.Message, dest
 	}
 	if err == nil && mid > 0 {
 		if aerr := e.annotateCopy(ctx, target.InputPeer(), int(mid), view); aerr != nil {
-			err = fmt.Errorf("copied but author annotation failed: %w", aerr)
+			// The copy exists in the destination. Recording the export as failed
+			// because its author footer could not be edited would forward the
+			// same post again on the next pass and duplicate it, so only log it.
+			slog.Default().Warn("export: copy succeeded but annotation failed",
+				slog.Int64("destination_chat_id", dest.ChatID.Int64),
+				slog.Int("destination_message_id", int(mid)),
+				slog.String("error", aerr.Error()))
 		}
 	}
 	if me := e.Store.MarkExport(ctx, row, dest.ID, mid, err); me != nil {
@@ -376,8 +390,11 @@ func (e *ChannelExporter) ExportMessages(ctx context.Context, msgs []store.Messa
 		return nil
 	}
 	t, err := e.Store.Target(ctx, msgs[0].ChatID)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	if t.ArchiveMode == "local" {
 		return nil
@@ -388,6 +405,16 @@ func (e *ChannelExporter) ExportMessages(ctx context.Context, msgs []store.Messa
 	}
 	groups := make(map[int64][]store.Message)
 	groupOrder := make([]int64, 0)
+	var firstErr error
+	// One failing destination or message must not abort the rest of the batch:
+	// the remaining posts are independent and the failed one is recorded in
+	// archive_exports for the next pass.
+	recordErr := func(err error) {
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		slog.Default().Warn("export: message failed", slog.String("error", err.Error()))
+	}
 	for _, msg := range msgs {
 		if msg.GroupedID != 0 {
 			if _, exists := groups[msg.GroupedID]; !exists {
@@ -398,9 +425,7 @@ func (e *ChannelExporter) ExportMessages(ctx context.Context, msgs []store.Messa
 		}
 		for _, dest := range dests {
 			if dest.Kind == "telegram" && dest.ChatID.Valid {
-				if err := e.exportOne(ctx, msg, dest); err != nil {
-					return err
-				}
+				recordErr(e.exportOne(ctx, msg, dest))
 			}
 		}
 	}
@@ -410,11 +435,11 @@ func (e *ChannelExporter) ExportMessages(ctx context.Context, msgs []store.Messa
 				continue
 			}
 			if _, err := e.MirrorMediaGroup(ctx, MediaGroup{Messages: groups[groupedID], Destination: dest}); err != nil {
-				return err
+				recordErr(err)
 			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func (e *ChannelExporter) ExportMessage(ctx context.Context, msg store.Message) error {
@@ -423,6 +448,9 @@ func (e *ChannelExporter) ExportMessage(ctx context.Context, msg store.Message) 
 
 func (e *ChannelExporter) ExportRecent(ctx context.Context, chatID int64, limit int) error {
 	t, err := e.Store.Target(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}

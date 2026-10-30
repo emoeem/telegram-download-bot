@@ -16,6 +16,7 @@ import (
 type Options struct {
 	KV               storage.Storage
 	Proxy            string
+	ProxyInsecure    bool
 	NTP              string
 	ReconnectTimeout time.Duration
 	UpdateHandler    telegram.UpdateHandler
@@ -46,6 +47,7 @@ func New(ctx context.Context, o Options, login bool, middlewares ...telegram.Mid
 		Session:          storage.NewSession(o.KV, login),
 		Middlewares:      middlewares,
 		Proxy:            o.Proxy,
+		ProxyInsecure:    o.ProxyInsecure,
 		NTP:              o.NTP,
 		ReconnectTimeout: o.ReconnectTimeout,
 		UpdateHandler:    o.UpdateHandler,

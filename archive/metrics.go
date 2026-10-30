@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -88,7 +89,7 @@ func (w *WebServer) metricsSnapshot(ctx context.Context) (store.Metrics, error) 
 	if time.Since(w.metricsCache.at) < 5*time.Second {
 		return w.metricsCache.snapshot, nil
 	}
-	snapshot, err := w.Store.MetricsSnapshot(ctx)
+	snapshot, err := w.store().MetricsSnapshot(ctx)
 	if err != nil {
 		return store.Metrics{}, err
 	}
@@ -154,22 +155,44 @@ func (w *WebServer) requestMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rec := &responseRecorder{ResponseWriter: rw}
 		start := time.Now()
+		// Baseline headers for every response, including errors and media. The
+		// login page and index add their own CSP on top.
+		h := rec.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
 		logger := slog.Default().With(
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 		)
+		defer func() {
+			if p := recover(); p != nil {
+				// ErrAbortHandler is the documented way to drop a connection
+				// mid-stream; net/http handles it silently, so re-panic.
+				if p == http.ErrAbortHandler {
+					panic(p)
+				}
+				logger.Error("http handler panicked",
+					slog.Any("panic", p),
+					slog.String("stack", string(debug.Stack())),
+				)
+				if rec.status == 0 {
+					http.Error(rec, "internal server error", http.StatusInternalServerError)
+				}
+			}
+			status := rec.status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			duration := time.Since(start)
+			w.httpMetrics.record(status, duration)
+			logger.Info("http request",
+				slog.Int("status", status),
+				slog.Int64("duration_ms", duration.Milliseconds()),
+				slog.String("remote_addr", remoteAddr(r.RemoteAddr)),
+			)
+		}()
 		next.ServeHTTP(rec, r)
-		status := rec.status
-		if status == 0 {
-			status = http.StatusOK
-		}
-		duration := time.Since(start)
-		w.httpMetrics.record(status, duration)
-		logger.Info("http request",
-			slog.Int("status", status),
-			slog.Int64("duration_ms", duration.Milliseconds()),
-			slog.String("remote_addr", remoteAddr(r.RemoteAddr)),
-		)
 	})
 }
 

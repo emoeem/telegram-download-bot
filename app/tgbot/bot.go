@@ -195,6 +195,7 @@ func (b *Bot) runOnce(ctx context.Context, appID int, appHash string, botKV csto
 		AppHash:          appHash,
 		Session:          cstorage.NewSession(botKV, false),
 		Proxy:            viper.GetString(consts.FlagProxy),
+		ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 		NTP:              viper.GetString(consts.FlagNTP),
 		ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 		UpdateHandler:    dispatcher,
@@ -330,9 +331,14 @@ func (b *Bot) onNewMessage(ctx context.Context, entities tg.Entities, upd *tg.Up
 
 	sess := b.getSession(chatID)
 	sess.setPeer(peer)
+	// Never log the body: /login collects the Telegram cloud password as a plain
+	// message, so logging "text" writes the 2FA password to bot.log. The command
+	// name is enough to follow the conversation.
+	command, _ := parseCommand(text)
 	b.logger.Info("Received bot message",
 		zap.Int64("chat_id", chatID),
-		zap.String("text", text),
+		zap.String("command", command),
+		zap.Int("chars", len([]rune(text))),
 	)
 
 	go func() {
@@ -832,6 +838,7 @@ func (b *Bot) newTelegramClient(ctx context.Context, kvd cstorage.Storage, login
 			AppHash:          appHash,
 			Session:          cstorage.NewSession(kvd, login),
 			Proxy:            viper.GetString(consts.FlagProxy),
+			ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 			NTP:              viper.GetString(consts.FlagNTP),
 			ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 			UpdateHandler:    nil,
@@ -847,6 +854,7 @@ func (b *Bot) newTelegramClient(ctx context.Context, kvd cstorage.Storage, login
 	return tclient.New(ctx, tclient.Options{
 		KV:               kvd,
 		Proxy:            viper.GetString(consts.FlagProxy),
+		ProxyInsecure:    viper.GetBool(consts.FlagProxyInsecure),
 		NTP:              viper.GetString(consts.FlagNTP),
 		ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout),
 		UpdateHandler:    nil,

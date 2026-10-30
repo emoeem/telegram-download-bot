@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/skip2/go-qrcode"
 
@@ -32,14 +34,71 @@ type WebAuthConfig struct {
 	Token         string
 	BasicUser     string
 	BasicPassword string
+	// LoginUser/LoginPassword switch the archive to form-based session auth:
+	// visitors land on a real login page instead of the browser's Basic dialog,
+	// and get a signed, expiring cookie plus an explicit logout.
+	LoginUser     string
+	LoginPassword string
+	// PasswordHash is the PBKDF2 verifier that supersedes LoginPassword once
+	// the credential file exists. It lives here, not in a second store, so the
+	// "which secret signs the cookie" question has exactly one answer:
+	// LoginCredential.Verifier().
+	PasswordHash string
+	// CredentialFile is where /api/auth/account writes a changed username or
+	// password. Empty disables the endpoint (the server is then configured
+	// entirely from flags, which is what every test does).
+	CredentialFile string
+	// SessionSecret overrides the cookie signing key. When empty it is derived
+	// from the credentials, so changing the password revokes every session.
+	SessionSecret []byte
+	// SessionTTL defaults to 12h.
+	SessionTTL time.Duration
 }
 
 type WebServer struct {
-	Store        *store.Store
-	Auth         WebAuthConfig
-	Ctl          *Controller // optional; nil keeps the server a read-only viewer
+	Store *store.Store
+	Auth  WebAuthConfig
+	Ctl   *Controller // optional; nil keeps the server a read-only viewer
+	// Accounts, when set, makes Store and Ctl projections of the account that
+	// is currently active. The plain fields stay as the fallback so a read-only
+	// server — and every test that builds one directly — keeps working.
+	Accounts *AccountManager
+	// Root is the archive data root (objects/, by-serial/). Empty means
+	// "<DataDir>/archive"; tests and alternate deployments set it explicitly so
+	// a purge can never reach into the live archive by accident.
+	Root         string
 	httpMetrics  HTTPMetrics
 	metricsCache metricsCache
+	// loginLimiter throttles password guessing; the zero value is usable.
+	loginLimiter loginLimiter
+	// login holds the live credential. It is an atomic pointer rather than a
+	// field on Auth because /api/auth/account mutates it while other requests
+	// read it, and a torn read here would silently accept a wrong password.
+	login atomic.Pointer[loginCredential]
+}
+
+// store resolves the database of the account being served. Resolving per call,
+// rather than caching a pointer at startup, is what makes switching accounts
+// take effect without a restart.
+func (w *WebServer) store() *store.Store {
+	if w.Accounts != nil {
+		if s := w.Accounts.Current(); s != nil && s.Store != nil {
+			return s.Store
+		}
+	}
+	return w.Store
+}
+
+// ctl resolves the controller of the account being served, or nil when that
+// account has no control plane (read-only mode, or no Telegram credentials).
+func (w *WebServer) ctl() *Controller {
+	if w.Accounts != nil {
+		if s := w.Accounts.Current(); s != nil {
+			return s.Ctl
+		}
+		return nil
+	}
+	return w.Ctl
 }
 
 type deletedAPIResponse struct {
@@ -108,7 +167,9 @@ func NewWebServer(s *store.Store, auth ...WebAuthConfig) *WebServer {
 	if len(auth) > 0 {
 		cfg = auth[0]
 	}
-	return &WebServer{Store: s, Auth: cfg}
+	w := &WebServer{Store: s, Auth: cfg}
+	w.login.Store(newLoginCredential(cfg))
+	return w
 }
 
 // NewManagedWebServer returns a viewer with the control plane enabled: QR
@@ -144,6 +205,8 @@ func (w *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/links", w.index)
 	mux.HandleFunc("/messages", w.index)
 	mux.HandleFunc("/storage", w.index)
+	mux.HandleFunc("/inbox", w.index)
+	mux.HandleFunc("/materials", w.index)
 	mux.HandleFunc("/api/stats", w.stats)
 	mux.HandleFunc("/api/metrics", w.metricsAPI)
 	mux.HandleFunc("/api/deleted", w.deleted)
@@ -158,12 +221,19 @@ func (w *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/api/messages/page", w.messagesPage)
 	mux.HandleFunc("/api/topics", w.topics)
 	mux.HandleFunc("/api/message/rowid", w.messageByRowID)
+	mux.HandleFunc("/api/message/group", w.messageGroup)
+	mux.HandleFunc("/api/message/delete", w.messageDelete)
 	mux.HandleFunc("/api/message", w.message)
 	mux.HandleFunc("/api/edits", w.edits)
 	mux.HandleFunc("/media/", w.media)
 	mux.HandleFunc("/avatar/", w.avatar)
 	mux.HandleFunc("/api/destinations", w.destinations)
 	mux.HandleFunc("/api/auth/status", w.authStatus)
+	// The panel login credential. Reached only after authMiddleware, so an
+	// anonymous POST cannot be used to probe the current password.
+	mux.HandleFunc("/api/auth/account", w.accountAPI)
+	mux.HandleFunc("/api/accounts", w.accountsAPI)
+	mux.HandleFunc("/api/accounts/", w.accountRoute)
 	mux.HandleFunc("/api/login/qr/start", w.loginQRStart)
 	mux.HandleFunc("/api/login/qr/status", w.loginQRStatus)
 	mux.HandleFunc("/api/login/qr/image", w.loginQRImage)
@@ -179,9 +249,53 @@ func (w *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/api/storage", w.storage)
 	mux.HandleFunc("/api/dialogs", w.dialogs)
 	mux.HandleFunc("/api/export", w.export)
+	mux.HandleFunc("/api/serials", w.serials)
+	mux.HandleFunc("/api/materials", w.materials)
+	mux.HandleFunc("/api/material/refresh", w.materialRefresh)
+	mux.HandleFunc("/api/serial", w.serialDetail)
+	mux.HandleFunc("/api/purge", w.purge)
 	mux.HandleFunc("/api/notify/rules", w.notifyRules)
 	mux.HandleFunc("/api/notify/test", w.notifyTest)
-	return w.requestMiddleware(w.authMiddleware(mux))
+	mux.HandleFunc("/api/autoclick", w.autoClickSettings)
+	mux.HandleFunc("/api/autoclick/scan", w.autoClickScan)
+	mux.HandleFunc("/api/autoclick/test", w.autoClickTest)
+	mux.HandleFunc("/api/autoclick/log", w.autoClickLog)
+	mux.HandleFunc("/api/autoclick/click", w.autoClickClick)
+	return w.requestMiddleware(w.csrfGuard(w.loginRoutes(w.authMiddleware(w.accountGuard(mux)))))
+}
+
+// accountGuard keeps a configured server usable after the operator removes
+// every account: handlers would otherwise resolve a nil store and panic. The
+// account endpoints stay reachable so one can be added back, and pages still
+// render so the UI can explain the state.
+func (w *WebServer) accountGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if w.Accounts == nil || w.Accounts.Current() != nil {
+			next.ServeHTTP(rw, r)
+			return
+		}
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/accounts"),
+			r.URL.Path == "/api/auth/status":
+			next.ServeHTTP(rw, r)
+			return
+		case r.URL.Path == "/healthz":
+			next.ServeHTTP(rw, r)
+			return
+		case r.URL.Path == "/readyz":
+			// Ready-but-empty is a real state, not a panic: probes must get an
+			// answer, and the answer is "not serving an account".
+			http.Error(rw, "no active account", http.StatusServiceUnavailable)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/media/") ||
+			strings.HasPrefix(r.URL.Path, "/avatar/") {
+			http.Error(rw, "no active account: add one from the account panel", http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 // getOnly enforces the HTTP method on read-only endpoints.
@@ -202,7 +316,7 @@ func (w *WebServer) serverError(rw http.ResponseWriter, err error) {
 
 // requireCtl rejects control-plane requests when the server is read-only.
 func (w *WebServer) requireCtl(rw http.ResponseWriter) bool {
-	if w.Ctl == nil {
+	if w.ctl() == nil {
 		http.Error(rw, "management disabled: restart serve with telegram.app-id/app-hash configured to enable login and monitoring", http.StatusServiceUnavailable)
 		return false
 	}
@@ -214,7 +328,11 @@ func (w *WebServer) authMiddleware(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.Body != nil {
 			r.Body = http.MaxBytesReader(rw, r.Body, 1<<20)
 		}
-		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || (w.Auth.Token == "" && w.Auth.BasicUser == "") {
+		// Health probes are only reachable without credentials when no auth is
+		// configured at all. Once a token or basic auth is set, an open
+		// /healthz would let anyone fingerprint and locate the archive, and an
+		// open /readyz would let them drive database work.
+		if !w.Auth.authConfigured() {
 			next.ServeHTTP(rw, r)
 			return
 		}
@@ -228,6 +346,16 @@ func (w *WebServer) authMiddleware(next http.Handler) http.Handler {
 			}
 			rw.Header().Set("WWW-Authenticate", "Bearer")
 			http.Error(rw, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// Form login: a signed, expiring cookie replaces the Basic dialog.
+		// Bearer is checked first above so scripts can still call the API.
+		if w.loginEnabled() {
+			if c, err := r.Cookie(sessionCookie); err == nil && w.validSession(c.Value, time.Now()) {
+				next.ServeHTTP(rw, r)
+				return
+			}
+			w.denySession(rw, r)
 			return
 		}
 		user, pass, ok := r.BasicAuth()
@@ -247,12 +375,12 @@ func (w *WebServer) healthz(rw http.ResponseWriter, _ *http.Request) {
 }
 
 func (w *WebServer) readyz(rw http.ResponseWriter, r *http.Request) {
-	if err := w.Store.DB().PingContext(r.Context()); err != nil {
+	if err := w.store().DB().PingContext(r.Context()); err != nil {
 		http.Error(rw, "not ready", http.StatusServiceUnavailable)
 		return
 	}
 	var tables int
-	if err := w.Store.DB().QueryRowContext(r.Context(), `
+	if err := w.store().DB().QueryRowContext(r.Context(), `
 		SELECT count(*)
 		FROM sqlite_master
 		WHERE type = 'table' AND name IN ('messages', 'media', 'jobs')
@@ -269,13 +397,21 @@ func (w *WebServer) index(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The UI uses inline handlers, so script-src keeps 'unsafe-inline'; the
+	// directives that still matter are connect/img/media (no exfiltration to a
+	// third-party origin), frame-ancestors (no clickjacking) and base-uri.
+	rw.Header().Set("Content-Security-Policy",
+		"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "+
+			"img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; "+
+			"frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+	rw.Header().Set("Cache-Control", "no-store")
 	_, _ = rw.Write([]byte(indexHTML))
 }
 func (w *WebServer) stats(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
-	m, media, t, e := w.Store.Stats(r.Context())
+	m, media, t, e := w.store().Stats(r.Context())
 	if e != nil {
 		w.serverError(rw, e)
 		return
@@ -288,7 +424,7 @@ func (w *WebServer) deleted(rw http.ResponseWriter, r *http.Request) {
 	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
-	v, err := w.Store.ListDeletedMessages(r.Context(), store.DeletedFilter{
+	v, err := w.store().ListDeletedMessages(r.Context(), store.DeletedFilter{
 		Query: r.URL.Query().Get("q"), Page: page, PageSize: pageSize,
 	})
 	if err != nil {
@@ -304,7 +440,7 @@ func (w *WebServer) edited(rw http.ResponseWriter, r *http.Request) {
 	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
-	v, err := w.Store.ListEditedMessages(r.Context(), store.EditedFilter{
+	v, err := w.store().ListEditedMessages(r.Context(), store.EditedFilter{
 		Query: r.URL.Query().Get("q"), Page: page, PageSize: pageSize,
 	})
 	if err != nil {
@@ -331,8 +467,11 @@ func (w *WebServer) mediaList(rw http.ResponseWriter, r *http.Request) {
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 	chat, _ := strconv.ParseInt(r.URL.Query().Get("chat"), 10, 64)
 	topic, _ := strconv.ParseInt(r.URL.Query().Get("topic"), 10, 64)
-	v, err := w.Store.ListMediaMessages(r.Context(), store.MediaFilter{
+	v, err := w.store().ListMediaMessages(r.Context(), store.MediaFilter{
 		Kind: kind, Query: r.URL.Query().Get("q"), ChatID: chat, Topic: topic, Page: page, PageSize: pageSize,
+		// The gallery collapses identical files by default; ?dedupe=0 shows every
+		// message so an operator can still audit how many times a bot reposted.
+		Dedupe: r.URL.Query().Get("dedupe") != "0",
 	})
 	if err != nil {
 		w.serverError(rw, err)
@@ -342,7 +481,7 @@ func (w *WebServer) mediaList(rw http.ResponseWriter, r *http.Request) {
 	for _, item := range v.Items {
 		ids = append(ids, item.RowID)
 	}
-	errs, err := w.Store.MediaErrorsByRowIDs(r.Context(), ids)
+	errs, err := w.store().MediaErrorsByRowIDs(r.Context(), ids)
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -366,7 +505,7 @@ func (w *WebServer) linksList(rw http.ResponseWriter, r *http.Request) {
 	}
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
-	v, err := w.Store.ListLinks(r.Context(), store.LinkFilter{
+	v, err := w.store().ListLinks(r.Context(), store.LinkFilter{
 		Query: r.URL.Query().Get("q"), Domain: r.URL.Query().Get("domain"), Page: page, PageSize: pageSize,
 	})
 	if err != nil {
@@ -380,7 +519,7 @@ func (w *WebServer) linkDomains(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
-	items, err := w.Store.ListLinkDomains(r.Context(), r.URL.Query().Get("q"))
+	items, err := w.store().ListLinkDomains(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -398,7 +537,7 @@ func (w *WebServer) linkDomains(rw http.ResponseWriter, r *http.Request) {
 func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		ts, e := w.Store.Targets(r.Context())
+		ts, e := w.store().Targets(r.Context())
 		if e != nil {
 			w.serverError(rw, e)
 			return
@@ -409,13 +548,15 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var req struct {
-			Target          string   `json:"target"`
-			Since           string   `json:"since"`
-			Limit           int      `json:"limit"`
-			DownloadMedia   *bool    `json:"download_media"`
-			Keywords        []string `json:"keywords"`
-			ExcludeKeywords []string `json:"exclude_keywords"`
-			MediaMaxSize    int64    `json:"media_max_size"`
+			Target            string   `json:"target"`
+			Since             string   `json:"since"`
+			Limit             int      `json:"limit"`
+			DownloadMedia     *bool    `json:"download_media"`
+			Keywords          []string `json:"keywords"`
+			ExcludeKeywords   []string `json:"exclude_keywords"`
+			MediaMaxSize      int64    `json:"media_max_size"`
+			AutoClick         bool     `json:"autoclick_enabled"`
+			AutoClickKeywords []string `json:"autoclick_keywords"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
@@ -432,9 +573,10 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 		if req.DownloadMedia != nil {
 			download = *req.DownloadMedia
 		}
-		job, err := w.Ctl.AddMonitor(AddMonitorOptions{
+		job, err := w.ctl().AddMonitor(AddMonitorOptions{
 			Target: req.Target, Since: req.Since, Limit: req.Limit, Download: download,
 			Keywords: req.Keywords, ExcludeKeywords: req.ExcludeKeywords, MediaMaxSize: req.MediaMaxSize,
+			AutoClick: req.AutoClick, AutoClickKeywords: req.AutoClickKeywords,
 		})
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusConflict)
@@ -446,12 +588,14 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var req struct {
-			ChatID          int64     `json:"chat_id"`
-			DownloadMedia   *bool     `json:"download_media"`
-			Enabled         *bool     `json:"enabled"`
-			MediaMaxSize    *int64    `json:"media_max_size"`
-			Keywords        *[]string `json:"keywords"`
-			ExcludeKeywords *[]string `json:"exclude_keywords"`
+			ChatID            int64     `json:"chat_id"`
+			DownloadMedia     *bool     `json:"download_media"`
+			Enabled           *bool     `json:"enabled"`
+			MediaMaxSize      *int64    `json:"media_max_size"`
+			Keywords          *[]string `json:"keywords"`
+			ExcludeKeywords   *[]string `json:"exclude_keywords"`
+			AutoClick         *bool     `json:"autoclick_enabled"`
+			AutoClickKeywords *[]string `json:"autoclick_keywords"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
@@ -472,11 +616,17 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 		if req.ExcludeKeywords != nil {
 			rules.ExcludeKeywords = *req.ExcludeKeywords
 		}
-		if err := w.Store.UpdateTargetRules(r.Context(), req.ChatID, rules); err != nil {
+		if req.AutoClick != nil {
+			rules.AutoClick = req.AutoClick
+		}
+		if req.AutoClickKeywords != nil {
+			rules.AutoClickKeywords = *req.AutoClickKeywords
+		}
+		if err := w.store().UpdateTargetRules(r.Context(), req.ChatID, rules); err != nil {
 			http.Error(rw, err.Error(), http.StatusNotFound)
 			return
 		}
-		t, err := w.Store.Target(r.Context(), req.ChatID)
+		t, err := w.store().Target(r.Context(), req.ChatID)
 		if err != nil {
 			w.serverError(rw, err)
 			return
@@ -491,7 +641,7 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "chat_id is required", http.StatusBadRequest)
 			return
 		}
-		if err := w.Ctl.RemoveMonitor(chatID); err != nil {
+		if err := w.ctl().RemoveMonitor(chatID); err != nil {
 			w.serverError(rw, err)
 			return
 		}
@@ -524,7 +674,7 @@ func (w *WebServer) monitorSync(rw http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 500
 	}
-	job, err := w.Ctl.SyncMonitor(req.Target, req.Limit)
+	job, err := w.ctl().SyncMonitor(req.Target, req.Limit)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusConflict)
 		return
@@ -547,17 +697,27 @@ func (w *WebServer) authStatus(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
-	if w.Ctl == nil {
+	// Account support present but nothing active means the operator removed
+	// every account. That is not read-only mode, and reporting it as such would
+	// point them at config.yaml instead of at the add-account button.
+	if w.Accounts != nil && w.Accounts.Current() == nil {
+		writeJSON(rw, authStatusAPIResponse{
+			Managed: true, State: "no_account",
+			Hint: "还没有账号，点击「添加账号」新建一个并扫码登录",
+		})
+		return
+	}
+	if w.ctl() == nil {
 		writeJSON(rw, authStatusAPIResponse{
 			Managed: false, State: "unmanaged",
 			Hint: "只读模式：在 config.yaml 配置 telegram.app-id/app-hash 后重启 serve，即可在网页端扫码登录并管理监控",
 		})
 		return
 	}
-	st := w.Ctl.State()
+	st := w.ctl().State()
 	writeJSON(rw, authStatusAPIResponse{
 		Managed: true, Authorized: st.Authorized, State: st.State,
-		User: st.User, Error: st.Error, QR: w.Ctl.QRState(), QRErr: w.Ctl.QRError(),
+		User: st.User, Error: st.Error, QR: w.ctl().QRState(), QRErr: w.ctl().QRError(),
 	})
 }
 
@@ -569,7 +729,7 @@ func (w *WebServer) loginQRStart(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	if err := w.Ctl.StartQRLogin(); err != nil {
+	if err := w.ctl().StartQRLogin(); err != nil {
 		http.Error(rw, err.Error(), http.StatusConflict)
 		return
 	}
@@ -580,12 +740,12 @@ func (w *WebServer) loginQRStatus(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	st := w.Ctl.State()
+	st := w.ctl().State()
 	writeJSON(rw, map[string]any{
-		"qr":         w.Ctl.QRState(),
+		"qr":         w.ctl().QRState(),
 		"authorized": st.Authorized,
 		"user":       st.User,
-		"error":      w.Ctl.QRError(),
+		"error":      w.ctl().QRError(),
 	})
 }
 
@@ -593,7 +753,7 @@ func (w *WebServer) loginQRImage(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	token := w.Ctl.QRToken()
+	token := w.ctl().QRToken()
 	if token == "" {
 		http.Error(rw, "no pending QR token", http.StatusNotFound)
 		return
@@ -616,7 +776,7 @@ func (w *WebServer) loginQRCancel(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	w.Ctl.CancelQR()
+	w.ctl().CancelQR()
 	writeJSON(rw, map[string]string{"status": "cancelled"})
 }
 
@@ -639,7 +799,7 @@ func (w *WebServer) loginPassword(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "password is required", http.StatusBadRequest)
 		return
 	}
-	if err := w.Ctl.SubmitPassword(req.Password); err != nil {
+	if err := w.ctl().SubmitPassword(req.Password); err != nil {
 		http.Error(rw, err.Error(), http.StatusConflict)
 		return
 	}
@@ -660,14 +820,17 @@ func (w *WebServer) jobs(rw http.ResponseWriter, r *http.Request) {
 		return out
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	jobs, err := w.Store.ListJobs(r.Context(), store.JobFilter{Status: parseList(r.URL.Query().Get("status")), Kind: parseList(r.URL.Query().Get("kind")), Limit: limit})
+	jobs, err := w.store().ListJobs(r.Context(), store.JobFilter{Status: parseList(r.URL.Query().Get("status")), Kind: parseList(r.URL.Query().Get("kind")), Limit: limit})
 	if err != nil {
 		w.serverError(rw, err)
 		return
 	}
 	out := make([]Job, 0, len(jobs))
 	for _, dj := range jobs {
-		j := Job{ID: dj.ID, Kind: dj.Kind, State: dj.Status, ProgressDone: dj.ProgressDone, ProgressTotal: dj.ProgressTotal, Error: dj.Error, FinishedAt: dj.FinishedAt}
+		// Archived 只在 live jobs map 里有值，服务一重启就归零 —— 面板上会
+		// 出现「✓ 消息完成 · 归档 0 条」这种自相矛盾的卡片。DB 里的
+		// progress_done 就是同一件事，先拿它兜底，live 再覆盖。
+		j := Job{ID: dj.ID, Kind: dj.Kind, State: dj.Status, Archived: dj.ProgressDone, ProgressDone: dj.ProgressDone, ProgressTotal: dj.ProgressTotal, Error: dj.Error, FinishedAt: dj.FinishedAt}
 		if dj.StartedAt != nil {
 			j.StartedAt = *dj.StartedAt
 		} else {
@@ -677,12 +840,12 @@ func (w *WebServer) jobs(rw http.ResponseWriter, r *http.Request) {
 			j.ChatID = *dj.ChatID
 			j.Target = fmt.Sprintf("%d", *dj.ChatID)
 		}
-		w.Ctl.jobsMu.Lock()
-		if live, ok := w.Ctl.jobs[dj.ID]; ok {
+		w.ctl().jobsMu.Lock()
+		if live, ok := w.ctl().jobs[dj.ID]; ok {
 			j.Target = live.Target
 			j.Archived = live.Archived
 		}
-		w.Ctl.jobsMu.Unlock()
+		w.ctl().jobsMu.Unlock()
 		out = append(out, j)
 	}
 	writeJSON(rw, jobsAPIResponse{Items: out})
@@ -700,7 +863,7 @@ func (w *WebServer) jobRoute(rw http.ResponseWriter, r *http.Request) {
 			http.Error(rw, "invalid job id", 400)
 			return
 		}
-		if err := w.Ctl.CancelJob(id); err != nil {
+		if err := w.ctl().CancelJob(id); err != nil {
 			http.Error(rw, err.Error(), 409)
 			return
 		}
@@ -715,7 +878,7 @@ func (w *WebServer) jobRoute(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
-	j, err := w.Store.GetJob(r.Context(), id)
+	j, err := w.store().GetJob(r.Context(), id)
 	if err != nil {
 		http.Error(rw, "job not found", 404)
 		return
@@ -737,7 +900,7 @@ func (w *WebServer) downloadSummary(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) || !w.requireCtl(rw) {
 		return
 	}
-	x, err := w.Store.DownloadSummary(r.Context(), w.Ctl.mediaRunning.Load(), w.Ctl.MediaPaused())
+	x, err := w.store().DownloadSummary(r.Context(), w.ctl().mediaRunning.Load(), w.ctl().MediaPaused())
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -749,7 +912,7 @@ func (w *WebServer) downloadActive(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) || !w.requireCtl(rw) {
 		return
 	}
-	jobs, err := w.Store.ListJobs(r.Context(), store.JobFilter{Status: []string{"running"}, Kind: []string{"backfill", "sync"}, Limit: 20})
+	jobs, err := w.store().ListJobs(r.Context(), store.JobFilter{Status: []string{"running"}, Kind: []string{"backfill", "sync"}, Limit: 20})
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -770,7 +933,7 @@ func (w *WebServer) downloadActive(rw http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, item{Name: name, ProgressDone: j.ProgressDone, ProgressTotal: j.ProgressTotal})
 	}
-	failed, err := w.Store.ListFailedMedia(r.Context(), 10)
+	failed, err := w.store().ListFailedMedia(r.Context(), 10)
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -786,7 +949,7 @@ func (w *WebServer) downloadPause(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	w.Ctl.SetMediaPaused(true)
+	w.ctl().SetMediaPaused(true)
 	writeJSON(rw, map[string]string{"status": "paused"})
 }
 func (w *WebServer) downloadResume(rw http.ResponseWriter, r *http.Request) {
@@ -797,7 +960,7 @@ func (w *WebServer) downloadResume(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	w.Ctl.SetMediaPaused(false)
+	w.ctl().SetMediaPaused(false)
 	writeJSON(rw, map[string]string{"status": "resumed"})
 }
 func (w *WebServer) downloadRetryFailed(rw http.ResponseWriter, r *http.Request) {
@@ -808,7 +971,7 @@ func (w *WebServer) downloadRetryFailed(rw http.ResponseWriter, r *http.Request)
 	if !w.requireCtl(rw) {
 		return
 	}
-	n, err := w.Store.RetryFailedMedia(r.Context())
+	n, err := w.store().RetryFailedMedia(r.Context())
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -825,7 +988,7 @@ func (w *WebServer) dialogs(rw http.ResponseWriter, r *http.Request) {
 	if !w.requireCtl(rw) {
 		return
 	}
-	rt, _, err := w.Ctl.runtimeForOps()
+	rt, _, err := w.ctl().runtimeForOps()
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusConflict)
 		return
@@ -840,7 +1003,7 @@ func (w *WebServer) dialogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	monitored := map[int64]bool{}
-	if ts, e := w.Store.Targets(r.Context()); e == nil {
+	if ts, e := w.store().Targets(r.Context()); e == nil {
 		for _, t := range ts {
 			monitored[t.ChatID] = true
 		}
@@ -871,14 +1034,14 @@ func (w *WebServer) storage(rw http.ResponseWriter, r *http.Request) {
 	// Derive every path from the store actually serving this request: the CLI
 	// happens to place it under consts.DataDir, but the storage numbers must
 	// describe THIS database, not whatever the default deployment layout is.
-	root := filepath.Dir(w.Store.Path())
+	root := filepath.Dir(w.store().Path())
 	resp := storageAPIResponse{MinFreeSpace: DefaultMinFreeSpace}
-	resp.DBBytes = fileSize(w.Store.Path())
-	resp.WALBytes = fileSize(w.Store.Path() + "-wal")
+	resp.DBBytes = fileSize(w.store().Path())
+	resp.WALBytes = fileSize(w.store().Path() + "-wal")
 	resp.ObjectsBytes, resp.ObjectsCount = dirUsage(filepath.Join(root, "objects"))
 	resp.StagingBytes, _ = dirUsage(filepath.Join(root, "staging"))
 	resp.BackupsBytes, resp.BackupsCount = dirUsage(filepath.Join(root, "backups"))
-	resp.LatestBackup = LatestBackup(w.Store.Path())
+	resp.LatestBackup = LatestBackup(w.store().Path())
 	if free, err := FreeDiskBytes(filepath.Join(root, "objects")); err == nil {
 		resp.FreeBytes = free
 	}
@@ -922,7 +1085,7 @@ func (w *WebServer) search(rw http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rs, e := w.Store.SearchAdvanced(r.Context(), q, store.SearchOptions{ChatID: chat, Limit: limit, Offset: offset})
+	rs, e := w.store().SearchAdvanced(r.Context(), q, store.SearchOptions{ChatID: chat, Limit: limit, Offset: offset})
 	if e != nil {
 		w.serverError(rw, e)
 		return
@@ -937,7 +1100,7 @@ func (w *WebServer) messagesPage(rw http.ResponseWriter, r *http.Request) {
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
 	chat, _ := strconv.ParseInt(r.URL.Query().Get("chat"), 10, 64)
 	topic, _ := strconv.ParseInt(r.URL.Query().Get("topic"), 10, 64)
-	v, err := w.Store.ListMessages(r.Context(), store.MessageFilter{Query: r.URL.Query().Get("q"), ChatID: chat, Topic: topic, Page: page, PageSize: pageSize})
+	v, err := w.store().ListMessages(r.Context(), store.MessageFilter{Query: r.URL.Query().Get("q"), ChatID: chat, Topic: topic, Page: page, PageSize: pageSize})
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -955,12 +1118,12 @@ func (w *WebServer) topics(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "chat is required", http.StatusBadRequest)
 		return
 	}
-	if !w.Store.ChatIsForum(r.Context(), chat) {
+	if !w.store().ChatIsForum(r.Context(), chat) {
 		writeJSON(rw, map[string]any{"forum": false, "topics": []store.TopicSummary{}})
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	ts, err := w.Store.Topics(r.Context(), chat, limit)
+	ts, err := w.store().Topics(r.Context(), chat, limit)
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -977,12 +1140,34 @@ func (w *WebServer) messageByRowID(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "rowid is required", http.StatusBadRequest)
 		return
 	}
-	v, err := w.Store.GetMessageByRowID(r.Context(), rowID)
+	v, err := w.store().GetMessageByRowID(r.Context(), rowID)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusNotFound)
 		return
 	}
 	writeJSON(rw, messageAPIResponse{Message: v})
+}
+
+// messageGroup returns every member of one album so the detail view can render
+// the post whole. Querying by grouped id alone would need no chat, but scoping
+// it keeps a stale link from pulling another chat's rows with the same numeric
+// group id.
+func (w *WebServer) messageGroup(rw http.ResponseWriter, r *http.Request) {
+	if !getOnly(rw, r) {
+		return
+	}
+	gid, err := strconv.ParseInt(r.URL.Query().Get("gid"), 10, 64)
+	if err != nil || gid == 0 {
+		http.Error(rw, "gid is required", http.StatusBadRequest)
+		return
+	}
+	chat, _ := strconv.ParseInt(r.URL.Query().Get("chat"), 10, 64)
+	vs, err := w.store().MessageViewsByGroup(r.Context(), chat, gid)
+	if err != nil {
+		w.serverError(rw, err)
+		return
+	}
+	writeJSON(rw, messagesAPIResponse{Items: vs, Total: len(vs), Page: 1, PageSize: len(vs)})
 }
 
 func (w *WebServer) messages(rw http.ResponseWriter, r *http.Request) {
@@ -991,7 +1176,7 @@ func (w *WebServer) messages(rw http.ResponseWriter, r *http.Request) {
 	}
 	chat, _ := strconv.ParseInt(r.URL.Query().Get("chat"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	rs, e := w.Store.RecentMessages(r.Context(), chat, limit)
+	rs, e := w.store().RecentMessages(r.Context(), chat, limit)
 	if e != nil {
 		w.serverError(rw, e)
 		return
@@ -1008,7 +1193,7 @@ func (w *WebServer) message(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "chat and id are required", 400)
 		return
 	}
-	v, e := w.Store.MessageView(r.Context(), chat, id)
+	v, e := w.store().MessageView(r.Context(), chat, id)
 	if e != nil {
 		http.Error(rw, e.Error(), 404)
 		return
@@ -1025,7 +1210,7 @@ func (w *WebServer) edits(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "chat and id are required", 400)
 		return
 	}
-	v, e := w.Store.Edits(r.Context(), chat, id)
+	v, e := w.store().Edits(r.Context(), chat, id)
 	if e != nil {
 		w.serverError(rw, e)
 		return
@@ -1036,13 +1221,17 @@ func (w *WebServer) destinations(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
-	ds, err := w.Store.Destinations(r.Context())
+	ds, err := w.store().Destinations(r.Context())
 	if err != nil {
 		http.Error(rw, err.Error(), 500)
 		return
 	}
 	writeJSON(rw, ds)
 }
+
+// sha256HexRE validates the content address in a /media/ path.
+var sha256HexRE = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
 func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/media/")
 	variant, sha := "original", path
@@ -1052,14 +1241,14 @@ func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(path, "preview/") {
 		variant, sha = "preview", strings.TrimPrefix(path, "preview/")
 	}
-	if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(sha) {
+	if !sha256HexRE.MatchString(sha) {
 		http.NotFound(rw, r)
 		return
 	}
 	var p string
 	if variant != "original" {
 		var err error
-		p, err = w.Store.MediaVariant(r.Context(), sha, variant)
+		p, err = w.store().MediaVariant(r.Context(), sha, variant)
 		if err != nil || p == "" {
 			http.NotFound(rw, r)
 			return
@@ -1070,15 +1259,23 @@ func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 		p = filepath.Join(consts.DataDir, "archive", "objects", sha[:2], sha[2:4], sha)
 		// Never let http.ServeFile sniff the type: a monitored .html payload
 		// served as text/html would execute in the archive origin (stored XSS).
-		switch mime := w.Store.FilesMime(r.Context(), sha); {
-		case strings.HasPrefix(mime, "image/"), strings.HasPrefix(mime, "video/"), strings.HasPrefix(mime, "audio/"):
+		// The allowlist matters too: an image/svg+xml document is a script, so
+		// it is served as an attachment like any other active content.
+		mime := w.store().FilesMime(r.Context(), sha)
+		if inlineMIME(mime) {
 			rw.Header().Set("Content-Type", mime)
-		default:
+		} else {
 			rw.Header().Set("Content-Type", "application/octet-stream")
 			rw.Header().Set("Content-Disposition", "attachment")
 		}
 	}
 	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	// Cached media is per-session: a shared proxy must not hand one operator's
+	// attachments to another request, and the sandbox CSP neutralises script if
+	// a browser ever renders an unexpected type inline.
+	rw.Header().Set("Cache-Control", "private, max-age=3600")
+	rw.Header().Set("Vary", "Authorization, Cookie")
+	rw.Header().Set("Content-Security-Policy", "sandbox")
 	root, _ := filepath.Abs(filepath.Join(consts.DataDir, "archive"))
 	abs, _ := filepath.Abs(p)
 	if !strings.HasPrefix(abs, root+string(os.PathSeparator)) {
@@ -1086,6 +1283,21 @@ func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(rw, r, abs)
+}
+
+// inlineMIME reports whether a content type may be rendered inline. SVG is
+// deliberately excluded: it is a script document, not a picture, and serving it
+// inline from the archive origin would run archived content with the session
+// cookie attached.
+func inlineMIME(mime string) bool {
+	m := strings.ToLower(strings.TrimSpace(strings.SplitN(mime, ";", 2)[0]))
+	switch m {
+	case "image/svg+xml", "image/svg", "text/html", "application/xhtml+xml":
+		return false
+	}
+	return strings.HasPrefix(m, "image/") ||
+		strings.HasPrefix(m, "video/") ||
+		strings.HasPrefix(m, "audio/")
 }
 func (w *WebServer) avatar(rw http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/avatar/"), "/"), "/")
@@ -1098,7 +1310,7 @@ func (w *WebServer) avatar(rw http.ResponseWriter, r *http.Request) {
 		http.NotFound(rw, r)
 		return
 	}
-	p, e := w.Store.AvatarPath(r.Context(), parts[0], id)
+	p, e := w.store().AvatarPath(r.Context(), parts[0], id)
 	if e != nil || p == "" {
 		http.NotFound(rw, r)
 		return

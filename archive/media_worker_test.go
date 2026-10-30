@@ -95,14 +95,27 @@ func TestMediaWorkerFailRetriesThenGivesUp(t *testing.T) {
 	}
 }
 
-// A rate limit must also park the whole queue, not just the job: retrying the
-// other jobs straight into the same limit makes the flood worse.
-func TestMediaWorkerPausesQueueOnTimeout(t *testing.T) {
+// A timeout is our own per-job budget, not a rate limit: it must not park the
+// whole queue. Only a real FloodWait pauses every job.
+func TestMediaWorkerDoesNotPauseQueueOnTimeout(t *testing.T) {
 	s, id := mediaJobStore(t)
 	w := &MediaWorker{Store: s}
 	ctx := context.Background()
 
 	_ = w.fail(ctx, store.MediaJob{ID: id, Attempts: 0}, context.DeadlineExceeded, false)
+	if until := s.MediaPausedUntil(ctx); !until.IsZero() {
+		t.Fatalf("a job timeout paused the whole queue until %s", until)
+	}
+}
+
+// A FloodWait does pause the queue: retrying other jobs straight into the same
+// limit makes the flood worse.
+func TestMediaWorkerPausesQueueOnFloodWait(t *testing.T) {
+	s, id := mediaJobStore(t)
+	w := &MediaWorker{Store: s}
+	ctx := context.Background()
+
+	_ = w.fail(ctx, store.MediaJob{ID: id}, tgerr.New(420, "FLOOD_WAIT_60"), false)
 	until := s.MediaPausedUntil(ctx)
 	if !until.After(time.Now().Add(floodPause - time.Minute)) {
 		t.Fatalf("queue not paused long enough: %s", until)
@@ -128,21 +141,39 @@ func TestMediaWorkerFailOnTimeoutNeverParks(t *testing.T) {
 	}
 }
 
-// The failure that matters most is the one caused by our own timeout: the job
-// context is already canceled, so the state write must not use it.
+// The failure that matters most is the one caused by our own job deadline: the
+// job context has expired, so the state write must not use it.
 func TestMediaWorkerFailWritesWithExpiredContext(t *testing.T) {
 	s, id := mediaJobStore(t)
 	w := &MediaWorker{Store: s}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // exactly the state a job is in when it times out
+	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	defer cancel()
+	<-ctx.Done()
 
-	if err := w.fail(ctx, store.MediaJob{ID: id, Attempts: 0}, errors.New("context deadline exceeded"), false); err == nil {
+	if err := w.fail(ctx, store.MediaJob{ID: id, Attempts: 0}, ctx.Err(), false); err == nil {
 		t.Fatal("a retryable failure must be reported to the caller")
 	}
 	status, attempts := mediaStatus(t, s, id)
 	if status != "failed" || attempts != 1 {
 		t.Fatalf("expired-context write was dropped: status=%q attempts=%d", status, attempts)
+	}
+}
+
+// A shutdown cancels the job context; that must not consume an attempt or park
+// a healthy job as skipped.
+func TestMediaWorkerShutdownDoesNotConsumeAttempt(t *testing.T) {
+	s, id := mediaJobStore(t)
+	w := &MediaWorker{Store: s}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := w.fail(ctx, store.MediaJob{ID: id}, context.Canceled, false); err == nil {
+		t.Fatal("cancellation should be reported to the caller")
+	}
+	status, attempts := mediaStatus(t, s, id)
+	if status == "skipped" || attempts != 0 {
+		t.Fatalf("shutdown wrote job state: status=%q attempts=%d", status, attempts)
 	}
 }
 

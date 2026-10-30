@@ -170,7 +170,7 @@ func NewRuntime(ctx context.Context, kvd cstorage.Storage, appID int, appHash st
 		return onReactions(ctx, u)
 	})
 	var h telegram.UpdateHandler
-	client, err := tclientcore.New(ctx, tclientcore.Options{AppID: appID, AppHash: appHash, Session: cstorage.NewSession(kvd, false), Proxy: viper.GetString(consts.FlagProxy), ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout), UpdateHandler: telegram.UpdateHandlerFunc(func(ctx context.Context, u tg.UpdatesClass) error {
+	client, err := tclientcore.New(ctx, tclientcore.Options{AppID: appID, AppHash: appHash, Session: cstorage.NewSession(kvd, false), Proxy: viper.GetString(consts.FlagProxy), ProxyInsecure: viper.GetBool(consts.FlagProxyInsecure), ReconnectTimeout: viper.GetDuration(consts.FlagReconnectTimeout), UpdateHandler: telegram.UpdateHandlerFunc(func(ctx context.Context, u tg.UpdatesClass) error {
 		if h == nil {
 			return nil
 		}
