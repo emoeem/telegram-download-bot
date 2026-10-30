@@ -24,6 +24,11 @@ if [ -z "${VERSION}" ]; then
   VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 fi
 
+# `tdl version` prints Commit/CommitDate too; inject them so a user bug report
+# pins to a revision instead of "unknown". Same three values the Dockerfile uses.
+COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+COMMIT_DATE="$(git log -1 --format=%cI 2>/dev/null || echo unknown)"
+
 APP_NAME="Telegram下载器"
 PKG_NAME="${APP_NAME}-Windows-x64"
 OUT_DIR="dist/windows-amd64"
@@ -60,7 +65,7 @@ CGO_ENABLED=1 GOOS=windows GOARCH=amd64 \
 log_info "==> 编译 tdl.exe（CGO_ENABLED=0，纯静态）"
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath \
-    -ldflags "-s -w -X github.com/iyear/tdl/pkg/consts.Version=${VERSION}" \
+    -ldflags "-s -w -X github.com/iyear/tdl/pkg/consts.Version=${VERSION} -X github.com/iyear/tdl/pkg/consts.Commit=${COMMIT} -X github.com/iyear/tdl/pkg/consts.CommitDate=${COMMIT_DATE}" \
     -o "${STAGE}/tdl.exe" .
 
 # ------------------------------------------------------------------ 资源文件

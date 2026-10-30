@@ -26,6 +26,12 @@ if [ -z "${VERSION}" ]; then
   VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 fi
 
+# `tdl version` prints Commit/CommitDate too. Leaving them as the "unknown"
+# default makes a user bug report impossible to pin to a revision, so inject all
+# three the same way the Dockerfile does.
+COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+COMMIT_DATE="$(git log -1 --format=%cI 2>/dev/null || echo unknown)"
+
 PKG_NAME="Telegram下载器-Linux-x64"
 OUT_DIR="dist/linux-amd64"
 STAGE="${OUT_DIR}/${PKG_NAME}"
@@ -44,7 +50,7 @@ mkdir -p "${STAGE}"
 # ---------------------------------------------------------------- 编译
 log_info "编译 linux/amd64（CGO 关闭 → 完全静态）"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
-  -ldflags "-s -w -X github.com/iyear/tdl/pkg/consts.Version=${VERSION}" \
+  -ldflags "-s -w -X github.com/iyear/tdl/pkg/consts.Version=${VERSION} -X github.com/iyear/tdl/pkg/consts.Commit=${COMMIT} -X github.com/iyear/tdl/pkg/consts.CommitDate=${COMMIT_DATE}" \
   -o "${STAGE}/tdl" .
 
 if [ ! -f "${STAGE}/tdl" ]; then
