@@ -1,0 +1,38 @@
+# 可选的 systemd user 单元（不需要 root）
+#
+# install.sh 默认用 nohup 后台运行，最简单也最不容易出问题。
+# 如果你希望「开机自启 / 崩溃自动重启」，用这个：
+#
+#   mkdir -p ~/.config/systemd/user
+#   sed "s|__APP_DIR__|$HOME/tdl-archive|g" tdl-serve.service.template \
+#     > ~/.config/systemd/user/tdl-serve.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now tdl-serve
+#   systemctl --user status tdl-serve
+#   journalctl --user -u tdl-serve -f
+#
+# 让服务在退出 SSH 后继续运行（多数云主机需要）：
+#   loginctl enable-linger "$USER"
+#
+# 用了 systemd 之后，就不要再用 install.sh 生成的 start.sh，两者会抢同一个端口。
+
+[Unit]
+Description=Telegram 下载器 · 归档面板
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+# 启动参数（含登录账号密码）由 run.sh 提供，权限 700，只有你自己能读
+ExecStart=__APP_DIR__/run.sh
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# 归档面板会往数据目录写文件，默认放在 $HOME 下即可
+Environment=TDL_LOG_FORMAT=text
+
+[Install]
+WantedBy=default.target

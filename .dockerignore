@@ -11,7 +11,16 @@ config.yaml
 *.log
 *.tmp
 tdl
+tdl.bak-*
 telegram-download-bot
+dist
+coverage
+.mimosa
+.zcode
+.workbuddy
+# A curl cookie jar that ended up in the repo root; never send it to the builder.
+-o
 docs/public
 docs/resources/_gen
+docs/screenshots
 .DS_Store

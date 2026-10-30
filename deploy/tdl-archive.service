@@ -1,0 +1,42 @@
+# Numbered inbox for a Telegram user account.
+#
+# Install as a systemd *user* unit so the service shares the same HOME (and
+# therefore the same ~/.tdl session and archive database) as the interactive
+# `tdl` binary:
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/tdl-archive.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now tdl-archive
+#   journalctl --user -u tdl-archive -f
+#
+# Keep running after logout:
+#   loginctl enable-linger "$USER"
+#
+# If the session is encrypted, put the passphrase in
+# ~/.config/tdl/archive.env (chmod 600) as:
+#   TGA_SESSION_PASSPHRASE=...
+# The leading '-' below makes that file optional.
+
+[Unit]
+Description=Telegram archive inbox (numbered media ledger)
+Documentation=file://%h/code/telegram-download-bot/docs/ARCHIVE-INBOX.md
+After=network-online.target
+Wants=network-online.target
+# Do not restart-loop if the session is not logged in yet.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/tdl/archive.env
+Environment=TDL_LOG_FORMAT=json
+ExecStart=%h/.local/bin/tdl archive run
+WorkingDirectory=%h
+Restart=always
+RestartSec=10
+# Let an in-flight media write finish instead of truncating it.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram 下载器 · Windows 使用说明</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --card:#fff; --text:#1a1d23; --muted:#5b6473;
+    --line:#e3e7ee; --accent:#2f6feb; --accent-soft:#eaf1ff;
+    --warn:#b45309; --warn-soft:#fef7e8; --ok:#0f7b4f; --ok-soft:#e9f7f1;
+    --danger:#b42318; --danger-soft:#fdecea; --code:#f2f4f8;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.75 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px 80px}
+  header.hero{
+    background:linear-gradient(135deg,#1e293b 0%,#243b5e 55%,#2f6feb 100%);
+    color:#fff;padding:56px 24px 48px;margin-bottom:32px;
+  }
+  header.hero .inner{max-width:960px;margin:0 auto}
+  .badge{
+    display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
+    padding:4px 12px;border-radius:999px;font-size:13px;letter-spacing:.5px;margin-bottom:18px;
+  }
+  h1{margin:0 0 14px;font-size:34px;letter-spacing:-.5px;font-weight:700}
+  .sub{margin:0;opacity:.9;font-size:17px;max-width:640px}
+  .meta{display:flex;flex-wrap:wrap;gap:28px;margin-top:28px;font-size:14px;opacity:.92}
+  .meta b{display:block;font-weight:600;font-size:13px;opacity:.7;letter-spacing:.5px;margin-bottom:3px}
+
+  nav.toc{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:22px 26px;margin-bottom:36px;
+  }
+  nav.toc h2{margin:0 0 14px;font-size:15px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  nav.toc ol{margin:0;padding-left:22px;columns:2;column-gap:36px}
+  @media(max-width:680px){nav.toc ol{columns:1}}
+  nav.toc li{margin:6px 0}
+  nav.toc a{color:var(--text);text-decoration:none;border-bottom:1px solid transparent}
+  nav.toc a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:30px 32px;margin-bottom:24px}
+  section h2{
+    margin:0 0 20px;font-size:24px;letter-spacing:-.3px;
+    padding-bottom:14px;border-bottom:1px solid var(--line);
+  }
+  section h2 .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:32px;height:32px;border-radius:9px;background:var(--accent-soft);color:var(--accent);
+    font-size:16px;font-weight:700;margin-right:12px;vertical-align:-3px;
+  }
+  h3{font-size:18px;margin:28px 0 12px}
+  h3:first-of-type{margin-top:0}
+  p{margin:12px 0}
+  ul,ol{margin:12px 0;padding-left:24px}
+  li{margin:7px 0}
+  code{
+    background:var(--code);padding:2px 7px;border-radius:5px;
+    font:14px/1.5 "Cascadia Code","Consolas",monospace;color:#c2410c;
+  }
+  pre{
+    background:#1e293b;color:#e2e8f0;padding:18px 20px;border-radius:10px;
+    overflow-x:auto;font:13.5px/1.7 "Cascadia Code","Consolas",monospace;margin:16px 0;
+  }
+  pre code{background:none;color:inherit;padding:0;font-size:inherit}
+
+  .box{border-radius:10px;padding:16px 20px;margin:18px 0;border-left:4px solid}
+  /* 只有作为标题的首个粗体独立成行；正文里的 <b> 保持行内，否则整句会被拆行 */
+  .box>b:first-child{display:block;margin-bottom:4px;font-size:14.5px}
+  .box.tip{background:var(--accent-soft);border-color:var(--accent);color:#173a7a}
+  .box.warn{background:var(--warn-soft);border-color:var(--warn);color:#7a4a08}
+  .box.ok{background:var(--ok-soft);border-color:var(--ok);color:#0a5638}
+  .box.danger{background:var(--danger-soft);border-color:var(--danger);color:#7a1a12}
+
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:15px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f2f5f9;font-weight:600;font-size:13.5px;letter-spacing:.3px;color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  td code{font-size:13px}
+
+  .steps{counter-reset:step;list-style:none;padding:0;margin:20px 0}
+  .steps>li{
+    counter-increment:step;position:relative;padding:0 0 0 52px;margin:0 0 22px;
+  }
+  .steps>li::before{
+    content:counter(step);position:absolute;left:0;top:0;
+    width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;
+  }
+  .steps>li b{display:block;margin-bottom:4px;font-size:16px}
+
+  .files{display:grid;gap:14px;margin:20px 0}
+  .file{
+    display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;
+    background:#fafbfd;border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+  }
+  .file .icon{font-size:26px;line-height:1}
+  .file .name{font-weight:700;font-family:"Cascadia Code",monospace;font-size:14.5px;margin-bottom:3px}
+  .file .desc{color:var(--muted);font-size:14.5px}
+
+  .faq{border-bottom:1px solid var(--line);padding:18px 0}
+  .faq:last-child{border-bottom:none}
+  .faq .q{font-weight:700;font-size:16.5px;margin-bottom:8px;color:#111}
+  .faq .q::before{content:"Q  ";color:var(--accent);font-weight:800}
+  .faq .a{color:#333}
+  .faq .a::before{content:"A  ";color:var(--ok);font-weight:800}
+
+  kbd{
+    background:#fff;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:5px;
+    padding:1px 7px;font:13px/1.6 inherit;font-family:inherit;
+  }
+  .pill{display:inline-block;padding:2px 9px;border-radius:6px;font-size:13px;font-weight:600}
+  .pill.a{background:var(--accent-soft);color:var(--accent)}
+  .pill.g{background:var(--ok-soft);color:var(--ok)}
+  .pill.r{background:var(--danger-soft);color:var(--danger)}
+  footer{text-align:center;color:var(--muted);font-size:13.5px;padding:30px 0 0}
+  hr{border:none;border-top:1px solid var(--line);margin:26px 0}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <div class="badge">Windows 版 · 使用说明</div>
+    <h1>Telegram 下载器</h1>
+    <p class="sub">把 Telegram 里的图片、视频、文件保存到自己电脑上。复制一条消息链接，粘贴进来，它帮你下完。</p>
+    <div class="meta">
+      <div><b>适用系统</b>Windows 10 / 11（64 位）</div>
+      <div><b>安装方式</b>绿色版，解压即用</div>
+      <div><b>版本</b>2.1.0</div>
+      <div><b>要不要装其他东西</b>不需要</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li><a href="#s1">这个软件是干什么的</a></li>
+    <li><a href="#s2">用之前要准备两样东西</a></li>
+    <li><a href="#s3">怎么把它装到电脑上</a></li>
+    <li><a href="#s4">第一次使用（五步）</a></li>
+    <li><a href="#s5">界面逐块说明</a></li>
+    <li><a href="#s6">什么链接能下载</a></li>
+    <li><a href="#s7">进阶：归档面板</a></li>
+    <li><a href="#s8">常见问题（12 条）</a></li>
+    <li><a href="#s9">文件存在哪，怎么彻底删掉</a></li>
+    <li><a href="#s10">出问题了怎么反馈</a></li>
+  </ol>
+</nav>
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>这个软件是干什么的</h2>
+
+  <p>一句话：<b>它用你自己的 Telegram 账号，把消息里的媒体文件下载到电脑上。</b></p>
+
+  <p>有些频道、群组、机器人聊天里的图片和视频，在手机上有「保存」按钮也点不动，或者一次只能存一张。这个软件的做法是：你把那条消息的链接复制过来，它用你的账号去把原始文件拉下来，存到你指定的文件夹。</p>
+
+  <h3>它能做什么</h3>
+  <ul>
+    <li>下载单张图片、单个视频、单个文件</li>
+    <li>下载整组相册（一条消息里带 9 张图，一次全下来）</li>
+    <li>同时跑多个下载任务，可随时取消</li>
+    <li>记住你下过什么，失败可以重来</li>
+  </ul>
+
+  <h3>它不做什么</h3>
+  <ul>
+    <li><b>它不是网盘客户端</b>，不会把你的文件传到别的地方，只做「从 Telegram 到你的电脑」</li>
+    <li><b>它不下载别人的私密内容</b>，你能看到什么，它就能下什么，看不到的它也拿不到</li>
+    <li><b>不需要密码托管</b>，登录状态只保存在你自己电脑上</li>
+  </ul>
+
+  <div class="box tip">
+    <b>包里有三个程序，别慌</b>
+    平时只用 <code>Telegram下载器.exe</code> 一个就够了。另外两个是「归档面板」用的，属于进阶功能，第 7 节才讲。第 3 节有每个文件的说明。
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>用之前要准备两样东西</h2>
+
+  <p>这两样东西看起来麻烦，但只做一次，十分钟搞定。跳过这一步，软件打开后什么也下不了。</p>
+
+  <h3>准备一：API ID 和 API Hash</h3>
+
+  <p>这是 Telegram 给每个第三方客户端发的「身份证」。任何非官方的 Telegram 软件都需要它，属于正常流程。</p>
+
+  <ol class="steps">
+    <li>
+      <b>打开 <code>https://my.telegram.org</code></b>
+      用你平时登录 Telegram 的手机号登录。验证码会发到你 Telegram 客户端里的「Telegram」官方对话，不是短信。
+    </li>
+    <li>
+      <b>点「API development tools」</b>
+      进去后如果让你填表，随便填：
+      <ul>
+        <li>App title：<code>myapp</code>（随便写）</li>
+        <li>Short name：<code>myapp</code>（随便写，5 个字符以上）</li>
+        <li>Platform：选 <code>Desktop</code></li>
+      </ul>
+      提交。
+    </li>
+    <li>
+      <b>记下两个值</b>
+      页面上会出现：
+      <ul>
+        <li><b>App api_id</b> —— 一串数字，比如 <code>12345678</code></li>
+        <li><b>App api_hash</b> —— 一串 32 位的字母数字，比如 <code>a1b2c3d4e5f6...</code></li>
+      </ul>
+      把这两个复制到记事本里，等下要用。
+    </li>
+  </ol>
+
+  <div class="box warn">
+    <b>这两个值等于你的账号钥匙，别给别人</b>
+    拿到 api_id 和 api_hash 的人可以冒充你这个客户端。不要发到群里、不要截图发朋友圈、不要贴在网上。
+  </div>
+
+  <div class="box tip">
+    <b>my.telegram.org 打不开？</b>
+    这个网站在国内直连通常打不开。先开好你的代理软件（下一节会讲），再访问。如果实在拿不到，可以找提供软件的人要一份「公共凭据」，但那样所有用这份凭据的人共享额度，稳定性差一些。
+  </div>
+
+  <h3>准备二：一个能连上 Telegram 的网络</h3>
+
+  <p>软件本身不提供翻墙功能，它只是用你电脑现有的网络去连 Telegram。所以：</p>
+
+  <ul>
+    <li>如果你的电脑已经能正常打开 Telegram 桌面版 → <b>不用管，直接跳过</b></li>
+    <li>如果连不上 → 你需要一个代理软件，并记下它的<b>本地端口</b></li>
+  </ul>
+
+  <table>
+    <tr><th>你用的代理软件</th><th>常见的本地地址</th></tr>
+    <tr><td>Clash / Clash Verge</td><td><code>http://127.0.0.1:7890</code></td></tr>
+    <tr><td>v2rayN</td><td><code>socks5://127.0.0.1:10808</code></td></tr>
+    <tr><td>Shadowsocks</td><td><code>socks5://127.0.0.1:1080</code></td></tr>
+  </table>
+
+  <p>不确定的话，打开你的代理软件看「设置 → 本地端口」，或者「局域网连接」那一栏。</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>怎么把它装到电脑上</h2>
+
+  <p>没有安装程序，不用点「下一步」。</p>
+
+  <ol class="steps">
+    <li>
+      <b>把压缩包解压出来</b>
+      右键压缩包 →「全部解压缩」。建议解压到一个固定位置，比如 <code>D:\Telegram下载器\</code>。
+    </li>
+    <li>
+      <b>不要直接在压缩包里双击运行</b>
+      必须先把文件解压出来，在压缩包预览窗口里运行会失败。
+    </li>
+    <li>
+      <b>第一次双击会跳一个蓝色警告</b>
+      见下面的说明，这是正常现象。
+    </li>
+  </ol>
+
+  <div class="box warn">
+    <b>第一次打开会被 Windows 拦一下，这是正常的</b>
+    <p style="margin:8px 0 0">会看到一个蓝底白字的窗口，写着「Windows 已保护你的电脑」。</p>
+    <p style="margin:8px 0 0">原因是这个软件没有花钱买微软的代码签名证书（一年几千块），不是因为它有问题。</p>
+    <p style="margin:8px 0 0"><b>处理方法：</b>点窗口里的「<b>更多信息</b>」→ 再点右下角出现的「<b>仍要运行</b>」。</p>
+  </div>
+
+  <h3>压缩包里每个文件是干什么的</h3>
+
+  <div class="files">
+    <div class="file">
+      <div class="icon">🖥️</div>
+      <div>
+        <div class="name">Telegram下载器.exe</div>
+        <div class="desc"><b>主程序。平时就双击这个。</b>打开是一个窗口界面，登录、粘贴链接、下载都在里面完成。</div>
+      </div>
+    </div>
+    <div class="file">
+      <div class="icon">🌐</div>
+      <div>
+        <div class="name">启动归档面板.bat</div>
+        <div class="desc">打开「归档面板」——一个在浏览器里用的界面，用来批量翻看、搜索、整理已经存下来的消息。进阶功能，见第 7 节。</div>
+      </div>
+    </div>
+    <div class="file">
+      <div class="icon">🔑</div>
+      <div>
+        <div class="name">首次登录归档.bat</div>
+        <div class="desc">归档面板第一次用之前，要先双击这个登录一次 Telegram 账号。<b>只做一次。</b></div>
+      </div>
+    </div>
+    <div class="file">
+      <div class="icon">⚙️</div>
+      <div>
+        <div class="name">tdl.exe</div>
+        <div class="desc">命令行版本，给懂技术的人用的。普通用户完全不用管它。上面两个 .bat 文件实际上就是在调用它。</div>
+      </div>
+    </div>
+    <div class="file">
+      <div class="icon">📄</div>
+      <div>
+        <div class="name">config.yaml</div>
+        <div class="desc">归档面板的配置文件。普通用户不用改。以后要填代理地址、或者给归档登录加密码，才需要动它。</div>
+      </div>
+    </div>
+    <div class="file">
+      <div class="icon">📖</div>
+      <div>
+        <div class="name">使用说明.html / 先看这里.txt</div>
+        <div class="desc">就是你现在看的这份文档，和一段三句话的快速上手。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box danger">
+    <b>这几个文件必须放在同一个文件夹里，不要单独把 exe 拖到桌面</b>
+    <code>Telegram下载器.exe</code> 单独拿走还能用（它的设置存在别处），但 <code>启动归档面板.bat</code> 如果离开了 <code>tdl.exe</code> 和 <code>config.yaml</code>，点了会闪退。
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>第一次使用（五步）</h2>
+
+  <p>从双击到文件躺在你硬盘里，一共五步。第一次大概 5 分钟，之后每次只要第 4 步。</p>
+
+  <ol class="steps">
+    <li>
+      <b>双击 <code>Telegram下载器.exe</code></b>
+      会打开一个窗口，默认是中文界面。顶部有三个标签：<b>下载</b>、<b>设置</b>、<b>关于</b>。
+    </li>
+
+    <li>
+      <b>先去「设置」页，填四样东西</b>
+      这是唯一一次需要集中配置的地方，填完保存，以后不用再进。
+      <table style="margin-top:12px">
+        <tr><th style="width:34%">字段</th><th>填什么</th></tr>
+        <tr>
+          <td><b>Telegram API ID</b></td>
+          <td>第 2 节拿到的 <code>api_id</code>，纯数字，比如 <code>12345678</code></td>
+        </tr>
+        <tr>
+          <td><b>Telegram API Hash</b></td>
+          <td>第 2 节拿到的 <code>api_hash</code>，32 位字母数字</td>
+        </tr>
+        <tr>
+          <td><b>下载目录</b></td>
+          <td>文件存哪。默认是 <code>下载\Telegram Downloads</code>。点「选择目录」可以改，建议改到空间大的盘，比如 <code>D:\Telegram</code></td>
+        </tr>
+        <tr>
+          <td><b>代理地址</b></td>
+          <td>网络连不上 Telegram 才填，格式见第 2 节。能直连就留空</td>
+        </tr>
+      </table>
+      <p style="margin-top:10px">下面还有三个数字，<b>保持默认就好</b>：同时任务数 <code>2</code>、单任务下载线程数 <code>4</code>、DC 连接池大小 <code>8</code>。电脑好、网络快可以往上调，调太高反而容易断。</p>
+      填完点「<b>保存设置</b>」，会弹「保存成功」。
+    </li>
+
+    <li>
+      <b>回「下载」页，点「登录」</b>
+      流程和你在手机上登录 Telegram 一模一样：
+      <ul>
+        <li>输入手机号，<b>要带国家码</b>，比如 <code>+8613800000000</code></li>
+        <li>点「开始登录」</li>
+        <li>Telegram 会给你发一个 5 位验证码（发到你的 Telegram 客户端里，不是短信）→ 填进去</li>
+        <li>如果你开了两步验证，还会让你输两步验证密码</li>
+      </ul>
+      登录成功后，页面顶部会显示「<b>已登录</b>」。
+      <div class="box ok" style="margin-top:14px">
+        <b>登录状态会记住</b>
+        关掉软件、重启电脑都不用重新登录。想换账号，点「退出登录」。
+      </div>
+    </li>
+
+    <li>
+      <b>复制一条 Telegram 消息链接，粘贴进来</b>
+      <p style="margin:8px 0"><b>怎么拿到链接：</b></p>
+      <ul>
+        <li>手机 Telegram：长按那条消息 →「复制链接」</li>
+        <li>电脑 Telegram：右键那条消息 →「复制消息链接」</li>
+      </ul>
+      复制到的东西长这样：<br>
+      <code>https://t.me/c/1234567890/5678</code> 或 <code>https://t.me/channelname/123</code>
+      <p style="margin:8px 0">粘进输入框，点「<b>添加下载</b>」。</p>
+    </li>
+
+    <li>
+      <b>看进度，等它下完</b>
+      任务会出现在下面的列表里，状态依次是：
+      <span class="pill a">等待中</span> → <span class="pill a">下载中</span> → <span class="pill g">已完成</span>
+      <ul>
+        <li>下载中的任务<b>点一下可以取消</b></li>
+        <li>失败的任务会显示原因，通常是网络断了或链接失效</li>
+        <li>完成后右上角会提示「已保存到下载目录」</li>
+      </ul>
+      文件就在你第 2 步设置的下载目录里。相册会整组下下来，不是只有一张。
+    </li>
+  </ol>
+
+  <div class="box tip">
+    <b>下一次用的时候</b>
+    双击 → 直接粘贴链接 → 添加下载。设置和登录都不用再弄。
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>界面逐块说明</h2>
+
+  <p>软件一共三个页面，顶部标签切换。</p>
+
+  <h3>「下载」页 —— 你 90% 的时间都在这里</h3>
+
+  <table>
+    <tr><th style="width:30%">位置</th><th>作用</th></tr>
+    <tr>
+      <td>顶部状态行</td>
+      <td>显示 <span class="pill g">已登录</span> 或「未登录，请先登录 Telegram 账号」。旁边是「登录 / 退出登录」按钮。</td>
+    </tr>
+    <tr>
+      <td>链接输入框</td>
+      <td>粘贴消息链接的地方。灰字提示是示例格式。</td>
+    </tr>
+    <tr>
+      <td>「添加下载」按钮</td>
+      <td>把链接丢进队列。链接格式不对会立刻提示「请输入有效的 Telegram 消息链接」。</td>
+    </tr>
+    <tr>
+      <td>任务列表</td>
+      <td>每条任务显示：链接、状态、进度、时间。点正在下载的任务 = 取消它。旁边的按钮可以移除单条记录。</td>
+    </tr>
+    <tr>
+      <td>任务列表下方小字</td>
+      <td>说明任务会按设置的并发数自动跑，点下载中的任务可以取消。</td>
+    </tr>
+    <tr>
+      <td>「移除全部」</td>
+      <td>清空任务记录。<b>只清记录，不删已下载的文件。</b>正在跑的任务会先被取消。</td>
+    </tr>
+  </table>
+
+  <div class="box tip">
+    <b>任务记录会保留</b>
+    关掉软件再打开，之前的任务列表还在（显示为「已取消」的那些是上次没跑完的）。这是故意的，方便你看下过什么。
+  </div>
+
+  <h3>「设置」页 —— 只填一次</h3>
+
+  <table>
+    <tr><th style="width:30%">字段</th><th>说明</th></tr>
+    <tr><td>语言</td><td>简体中文 / English。切换后立即生效。</td></tr>
+    <tr><td>Telegram API ID</td><td>必填，纯数字。</td></tr>
+    <tr><td>Telegram API Hash</td><td>必填，32 位字符串。</td></tr>
+    <tr><td>下载目录</td><td>文件存哪。点右边「选择目录」可以浏览文件夹。</td></tr>
+    <tr><td>代理地址</td><td>可选。格式 <code>http://127.0.0.1:7890</code> 或 <code>socks5://127.0.0.1:1080</code>。</td></tr>
+    <tr><td>同时任务数</td><td>默认 2。同时下几个任务。</td></tr>
+    <tr><td>单任务下载线程数</td><td>默认 4。一个任务用几个连接下。</td></tr>
+    <tr><td>DC 连接池大小</td><td>默认 8。Telegram 有多个数据中心，池子越大切换越顺。</td></tr>
+    <tr><td>「保存设置」</td><td>保存后提示「设置已保存；<b>新启动的任务</b>将使用新配置」。已在进行中的任务不受影响。</td></tr>
+  </table>
+
+  <div class="box warn">
+    <b>三个数字不要乱调</b>
+    调太大（比如线程 16、并发 8）容易触发 Telegram 限流，反而更慢或者直接失败。默认值已经调过了，够用。
+  </div>
+
+  <h3>「关于」页 —— 查版本、看更新</h3>
+
+  <ul>
+    <li>显示当前版本号和远程最新版本号</li>
+    <li>点「检查」可以查有没有新版</li>
+    <li>有新版会给一个「前往 Release 下载最新版本」的链接</li>
+    <li>下面写着官网和开源协议（AGPL-3.0）</li>
+  </ul>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>什么链接能下载</h2>
+
+  <p>只认 Telegram 的公开消息链接，四种开头都行：</p>
+
+  <table>
+    <tr><th>格式</th><th>例子</th><th>说明</th></tr>
+    <tr>
+      <td><code>https://t.me/…</code></td>
+      <td><code>https://t.me/channelname/123</code></td>
+      <td>公开频道/群组</td>
+    </tr>
+    <tr>
+      <td><code>https://t.me/c/…</code></td>
+      <td><code>https://t.me/c/1234567890/5678</code></td>
+      <td>私有频道/群组（最常见）</td>
+    </tr>
+    <tr>
+      <td><code>https://telegram.me/…</code></td>
+      <td><code>https://telegram.me/xxx/123</code></td>
+      <td>旧式写法，同样支持</td>
+    </tr>
+    <tr>
+      <td><code>http://</code> 开头</td>
+      <td><code>http://t.me/xxx/123</code></td>
+      <td>也支持</td>
+    </tr>
+  </table>
+
+  <h3>能下什么</h3>
+  <ul>
+    <li>✅ 图片（含原图）</li>
+    <li>✅ 视频（含大文件）</li>
+    <li>✅ 文档、压缩包、音频</li>
+    <li>✅ 整组相册（一条消息里的多张图）</li>
+    <li>❌ 纯文字消息的「文字」不会单独存成文件，它本来就不是文件</li>
+    <li>❌ 你看不到的消息（没权限、已删除）也拿不到</li>
+  </ul>
+
+  <h3>什么情况下会失败</h3>
+  <ul>
+    <li><b>链接指向的消息已删除</b> → 提示失败，删了就是删了</li>
+    <li><b>你的账号不在那个群/频道里</b> → 拿不到，得先加进去</li>
+    <li><b>敏感内容被 Telegram 屏蔽</b> → 需要在 Telegram 设置里允许「敏感内容」，这是账号级别的设置</li>
+    <li><b>网络中断</b> → 关掉重来一次通常就好</li>
+    <li><b>文件太大</b> → 免费账号对单个文件有大小限制，超了会失败</li>
+  </ul>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>进阶：归档面板（可选，不用也完全不影响）</h2>
+
+  <p>桌面版是「下一份文件」的工具。归档面板是另一个东西：<b>它把你说过话的频道、收到的消息，全部存一份在你自己电脑上，然后给你一个网页界面去翻、去搜、去整理。</b></p>
+
+  <p>适合的场景：某个频道每天发几百条，你想事后按关键词搜；或者想按发帖人、按日期、按类型（图片/视频/文件）筛。</p>
+
+  <div class="box warn">
+    <b>先把话说清楚</b>
+    归档面板会把消息<b>内容</b>存到你的电脑上，包括图片视频的原始文件。数据量可能很大（几十 GB）。不需要这个功能就完全别碰，第 1 到 6 节已经覆盖了下载需求。
+  </div>
+
+  <h3>开启步骤</h3>
+
+  <ol class="steps">
+    <li>
+      <b>双击「首次登录归档.bat」</b>
+      会开一个黑色窗口，按提示走：
+      <ul>
+        <li>提示输入手机号 → 输 <code>+8613800000000</code> 这种格式，回车</li>
+        <li>提示输入验证码 → 输 Telegram 收到的码，回车</li>
+        <li>如果有两步验证 → 输密码，回车</li>
+      </ul>
+      <div class="box tip" style="margin-top:12px">
+        <b>为什么要单独登录一次？</b>
+        归档面板用的登录状态和桌面版是<b>分开存</b>的。你在桌面版登录过，归档面板还是要单独登一次。这是两个独立的存储位置，不是 bug。
+      </div>
+    </li>
+
+    <li>
+      <b>双击「启动归档面板.bat」</b>
+      <ul>
+        <li>会弹一个黑色窗口，显示「归档面板正在启动」</li>
+        <li>3 秒后浏览器自动打开 <code>http://127.0.0.1:8091</code></li>
+        <li>如果浏览器没自动打开，手工把这个地址复制到浏览器地址栏</li>
+      </ul>
+    </li>
+
+    <li>
+      <b>在网页里添加要监控的频道/群</b>
+      进入「监控」→ 添加 → 填 <code>@频道用户名</code> 或数字 chat-id → 它会开始把历史消息拉下来，然后持续接收新消息。
+    </li>
+
+    <li>
+      <b>用左边导航浏览</b>
+      <table style="margin-top:12px">
+        <tr><th style="width:32%">导航项</th><th>看到什么</th></tr>
+        <tr><td>消息</td><td>所有消息的时间线</td></tr>
+        <tr><td>图片 / 视频 / 文件</td><td>按类型筛，同一文件重复出现的会折叠成一张卡</td></tr>
+        <tr><td>链接</td><td>消息里出现过的所有网址</td></tr>
+        <tr><td>已删除</td><td>对方删了、但你本地还留着的消息</td></tr>
+        <tr><td>编辑记录</td><td>消息被改过的历史版本</td></tr>
+        <tr><td>编号</td><td>按「收到顺序」的流水号，每个媒体一个号，永不复用</td></tr>
+        <tr><td>材料</td><td>整理后的内容层，同一条内容在多个频道出现只算一份</td></tr>
+        <tr><td>存储</td><td>占了多少空间，哪些能清理</td></tr>
+        <tr><td>监控</td><td>添加/删除要归档的频道</td></tr>
+      </table>
+    </li>
+  </ol>
+
+  <h3>三个使用要点</h3>
+
+  <table>
+    <tr><th style="width:30%">要点</th><th>说明</th></tr>
+    <tr>
+      <td>黑色窗口不能关</td>
+      <td>那个窗口就是服务本身。关掉窗口 = 面板停止。想继续用就再双击一次 bat。</td>
+    </tr>
+    <tr>
+      <td>只有本机能访问</td>
+      <td>默认只监听 <code>127.0.0.1</code>，同一局域网的其他电脑也访问不到。这是有意的安全设计，不用改。</td>
+    </tr>
+    <tr>
+      <td>管理功能需要 config.yaml</td>
+      <td>包里已经配好了。如果面板只让你看、不让你加监控，说明 <code>config.yaml</code> 没和 <code>tdl.exe</code> 放在一起。</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2><span class="num">8</span>常见问题（12 条）</h2>
+
+  <div class="faq">
+    <div class="q">双击没反应，或者窗口一闪就没了</div>
+    <div class="a">
+      三个可能，按顺序排：<br>
+      ① 你是在<b>压缩包里</b>直接双击的 → 先解压出来再运行<br>
+      ② 被 Windows Defender 或 360 拦了 → 打开杀毒软件的「隔离区」，把文件恢复并加白名单<br>
+      ③ 缺系统组件 → 这个版本需要 <b>Windows 10 或更高</b>，Win7/8 跑不了
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">提示「请先在设置中填写 Telegram API ID 和 API Hash」</div>
+    <div class="a">
+      去「设置」页填上第 2 节拿到的两个值，点「保存设置」，然后<b>回到下载页重新点一次添加下载</b>（不会自动重试）。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">登录时收不到验证码</div>
+    <div class="a">
+      验证码不发短信，<b>发到你 Telegram 客户端的「Telegram」官方对话里</b>。打开手机上的 Telegram 看一眼。<br>
+      如果手机上也没收到，等 60 秒后重试；连续失败多次会被限流，这时候要等十几分钟。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">一直卡在「正在检查登录状态…」或者登录转圈</div>
+    <div class="a">
+      99% 是网络问题。Telegram 连不上。<br>
+      ① 先在「设置」里填代理地址（格式 <code>http://127.0.0.1:7890</code>）<br>
+      ② 确认你的代理软件正在运行，并且开了「允许局域网连接」<br>
+      ③ 保存设置后<b>关掉软件重新打开</b>（代理只在启动时读）
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">下载很慢，或者下到一半失败</div>
+    <div class="a">
+      先别急着调参数。按这个顺序排查：<br>
+      ① 网络本身慢 → 换个节点试试<br>
+      ② 同时下太多 → 把「同时任务数」调回 2<br>
+      ③ 大文件在高峰期慢是正常的，Telegram 对免费账号有带宽限制<br>
+      ④ 失败了就删掉那条记录重新添加，会从断点继续
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">下载的文件在哪？找不到</div>
+    <div class="a">
+      打开软件 →「设置」→ 看「下载目录」那一栏写的是什么路径。<br>
+      默认是 <code>C:\Users\你的用户名\Downloads\Telegram Downloads</code>。<br>
+      也可以在「下载」页，任务完成后点那条任务，通常会显示保存位置。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">相册只下了一张，其他几张没下来</div>
+    <div class="a">
+      正常情况会自动整组下。如果只下了一张：<br>
+      ① 检查是不是任务还在「下载中」，大相册需要时间<br>
+      ② 有些相册里的部分图片在服务器端已经失效，那种拿不到<br>
+      ③ 把链接重新添加一次，通常会补齐缺的那几张
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">杀毒软件报毒 / 提示有木马</div>
+    <div class="a">
+      这是<b>没有代码签名</b>的程序常见的误报。原因：<br>
+      · 程序是用 Go 编译的独立 exe，体积大（60MB+），行为像「加壳程序」<br>
+      · 没有花钱买微软/360 的白名单<br>
+      · 它会主动连接 Telegram 服务器<br>
+      处理：在杀毒软件里把这个文件加白名单 / 信任。如果你不放心，这个项目是开源的（AGPL-3.0），可以让懂技术的人看源码。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">提示「Current database is used by another process」</div>
+    <div class="a">
+      有两个程序同时用了同一份数据。检查是不是：<br>
+      ① 开了两个 <code>tdl.exe</code> 窗口（比如双击了两次启动 bat）<br>
+      ② 归档面板正在跑，同时你又开了别的归档命令<br>
+      关掉多余的那个就好。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">归档面板打开是空白页 / 转圈不出来</div>
+    <div class="a">
+      ① 确认黑色窗口还在，里面有没有红色的报错<br>
+      ② 地址是不是 <code>127.0.0.1:8091</code>（不是 8080，不是 https）<br>
+      ③ 端口被占了 → 关掉其他程序，或者改 bat 里的端口号<br>
+      ④ 浏览器缓存 → 按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 强制刷新
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">归档面板里没有数据，或者显示「只能浏览」</div>
+    <div class="a">
+      两种不同的情况：<br>
+      <b>没有数据</b> → 你没添加监控。进「监控」页添加频道/群。<br>
+      <b>只能浏览不能管理</b> → <code>config.yaml</code> 没被读到。确认它和 <code>tdl.exe</code> 在同一个文件夹，并且是通过 bat 启动的（bat 会自动切到所在目录）。
+    </div>
+  </div>
+
+  <div class="faq">
+    <div class="q">想换一个 Telegram 账号</div>
+    <div class="a">
+      桌面版：点「退出登录」→ 会提示「退出会删除此电脑上保存的 Telegram 登录状态」→ 确认 → 重新登录新账号。<br>
+      归档面板：重新双击「首次登录归档.bat」，登录新账号会覆盖旧的。<br>
+      注意：两者要<b>分别</b>换。
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9">
+  <h2><span class="num">9</span>文件存在哪，怎么彻底删掉</h2>
+
+  <h3>三个位置，记一下</h3>
+
+  <table>
+    <tr><th style="width:26%">存什么</th><th>位置（把「你的用户名」换成实际的）</th></tr>
+    <tr>
+      <td>下载的文件</td>
+      <td>你设置里指定的下载目录，默认 <code>C:\Users\你的用户名\Downloads\Telegram Downloads</code></td>
+    </tr>
+    <tr>
+      <td>桌面版的设置和登录状态</td>
+      <td><code>C:\Users\你的用户名\AppData\Roaming\telegram-download-bot\</code></td>
+    </tr>
+    <tr>
+      <td>归档面板的数据（消息、图片、视频）</td>
+      <td><code>C:\Users\你的用户名\.tdl\archive\</code></td>
+    </tr>
+  </table>
+
+  <div class="box tip">
+    <b>怎么快速打开这些文件夹</b>
+    按 <kbd>Win</kbd>+<kbd>R</kbd>，把上面的路径粘进去（<code>%APPDATA%\telegram-download-bot</code> 也行），回车。
+  </div>
+
+  <h3>彻底删干净（三步）</h3>
+  <ol>
+    <li>删掉整个程序文件夹（你解压出来的那个）</li>
+    <li>删掉 <code>%APPDATA%\telegram-download-bot</code> —— 这是登录状态，不删的话下次装回来还是登录着的</li>
+    <li>如果用过归档面板，再删掉 <code>%USERPROFILE%\.tdl</code> —— 这里面是归档的图片视频，可能占几十 GB</li>
+  </ol>
+
+  <div class="box warn">
+    <b>不删第 2 步的后果</b>
+    软件是绿色版，没有注册表项，也不装服务。但登录状态留在 <code>%APPDATA%</code> 里。如果电脑要转手，务必删掉，否则拿到这台电脑的人可以直接用你的 Telegram 账号。
+  </div>
+
+  <h3>怎么只清归档数据、保留设置</h3>
+  <p>删掉 <code>%USERPROFILE%\.tdl\archive\objects</code> 这个文件夹，能回收绝大部分空间（图片视频都在这）。消息记录还在，只是文件没了。</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <h2><span class="num">10</span>出问题了怎么反馈</h2>
+
+  <p>给提供软件的人发这三样，能省掉一半来回：</p>
+
+  <ol>
+    <li>
+      <b>版本号</b>
+      软件里「关于」页显示的那一行。
+    </li>
+    <li>
+      <b>截图</b>
+      报错的那个窗口，把完整文字截进去。别只截「出错了」三个字。
+    </li>
+    <li>
+      <b>日志文件</b>
+      <code>C:\Users\你的用户名\AppData\Roaming\telegram-download-bot\desktop.log</code><br>
+      归档面板的问题则是黑色窗口里的红色文字。
+    </li>
+  </ol>
+
+  <div class="box danger">
+    <b>发之前把这两个东西打码</b>
+    · <b>api_hash</b>（32 位那串）<br>
+    · <b>手机号</b>（截图里如果有）<br>
+    这两个泄露了等于账号泄露。
+  </div>
+
+  <hr>
+
+  <h3>技术信息（给帮你排查的人看）</h3>
+
+  <table>
+    <tr><th style="width:32%">项</th><th>值</th></tr>
+    <tr><td>程序类型</td><td>Go 静态编译，Windows x64，无需运行库</td></tr>
+    <tr><td>桌面版依赖</td><td>仅系统 DLL（KERNEL32 / USER32 / GDI32 / OPENGL32 / SHELL32 / UCRT）</td></tr>
+    <tr><td>最低系统</td><td>Windows 10 64 位（UCRT 内置）</td></tr>
+    <tr><td>桌面版配置</td><td><code>%APPDATA%\telegram-download-bot\settings.json</code></td></tr>
+    <tr><td>桌面版日志</td><td><code>%APPDATA%\telegram-download-bot\desktop.log</code></td></tr>
+    <tr><td>归档数据</td><td><code>%USERPROFILE%\.tdl\archive\tgarchive.db</code></td></tr>
+    <tr><td>归档面板地址</td><td><code>http://127.0.0.1:8091</code>（仅本机）</td></tr>
+    <tr><td>命令行帮助</td><td><code>tdl.exe --help</code>、<code>tdl.exe archive --help</code></td></tr>
+  </table>
+</section>
+
+<footer>
+  Telegram 下载器 · Windows 版使用说明 · 基于开源项目 tdl（AGPL-3.0）构建
+</footer>
+
+</div>
+</body>
+</html>

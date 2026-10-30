@@ -2,7 +2,10 @@
 .vscode/
 .DS_Store
 
-config.yaml
+# Only the runtime config at the repo root. deploy/windows/config.yaml is a
+# shipped template that hack/build-windows.sh copies into the Windows package,
+# so an unanchored rule silently dropped a file the release needs.
+/config.yaml
 .env
 .env.*
 !.env.example
@@ -14,6 +17,7 @@ downloads/
 
 tdl
 telegram-download-bot
+tdl.bak-*
 __debug_bin*
 *.exe
 *.test
@@ -25,3 +29,11 @@ coverage/
 *.tmp
 *.backup
 .hugo_build.lock
+
+# curl cookie jars created by "curl -c -o ..." end up named "-o" by accident;
+# one of them leaked a session cookie into the repo.
+/-o
+
+.workbuddy/
+.mimosa/
+.zcode/

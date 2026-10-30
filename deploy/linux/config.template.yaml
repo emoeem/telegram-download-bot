@@ -1,0 +1,32 @@
+# Telegram 下载器 · 自托管配置
+#
+# 只需要填 telegram.app-id / app-hash 这两项，其余留空即可。
+#
+# 申请方法（5 分钟，免费）：
+#   1. 浏览器打开 https://my.telegram.org
+#   2. 输入你的 Telegram 手机号（带国家码），接收验证码登录
+#   3. 点 "API development tools"
+#   4. 应用名随便填（例如 my-archive），平台选 Other
+#   5. 得到 api_id（一串数字）和 api_hash（32 位十六进制）
+#
+# 注意：这两个值是「应用身份」，不是你的账号密码。它们泄露不会直接丢号，
+# 但仍应保密 —— 别人可以拿它冒充这个应用去尝试登录。每个部署建议各自申请。
+
+telegram:
+  app-id: 0              # ← 填你的 api_id（纯数字，例如 1234567）
+  app-hash: ""           # ← 填你的 api_hash（32 位字符串）
+
+tdl:
+  # 服务器直连 Telegram 不通时填代理。常见写法：
+  #   socks5://127.0.0.1:1080
+  #   http://user:pass@127.0.0.1:8080
+  proxy: ""
+  ntp: ""
+  threads: 4
+  limit: 2
+  pool: 8
+  delay: "0s"
+
+# 单机自托管不需要机器人，留空。
+bot:
+  token: ""
