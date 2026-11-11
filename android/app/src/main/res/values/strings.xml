@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TG 归档</string>
+    <string name="notif_channel_name">归档服务</string>
+    <string name="notif_channel_desc">保持与 Telegram 的连接并归档消息</string>
+    <string name="notif_title">归档服务运行中</string>
+    <string name="notif_text">正在接收并归档 Telegram 消息</string>
+    <string name="starting">正在启动归档核心…</string>
+    <string name="start_failed">归档核心启动失败</string>
+    <string name="notif_action_credentials">更换 API 凭据</string>
+</resources>

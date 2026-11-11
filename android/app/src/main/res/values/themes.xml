@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The web UI paints its own dark surface, so the window background just
+         has to match it to avoid a white flash before the first paint. -->
+    <style name="Theme.TdlArchive" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#080a0f</item>
+        <item name="android:statusBarColor">#080a0f</item>
+        <item name="android:navigationBarColor">#080a0f</item>
+    </style>
+</resources>

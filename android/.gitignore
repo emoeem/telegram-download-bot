@@ -1,0 +1,10 @@
+# Build output and the gomobile AAR are derived; regenerate with build-aar.sh
+/build/
+/app/build/
+/app/libs/*.aar
+# gomobile also drops a -sources.jar next to the AAR. Derived too, and it was
+# otherwise picked up by `git add android/`.
+/app/libs/*.jar
+/local.properties
+/.gradle/
+*.iml

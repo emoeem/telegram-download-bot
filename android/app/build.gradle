@@ -1,0 +1,194 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Version of the Go core this APK ships.
+//
+// Same source as android/build-aar.sh: both ask git for the tag. They used to
+// disagree — versionName was hardcoded here while mobile.Version was never
+// injected at all and stayed "dev" — so a device could report one version in
+// the UI and carry another in the manifest, and neither could be tied back to
+// a commit. Falls back to 'dev' outside a git checkout.
+//
+// TDL_VERSION overrides the git lookup. A release bundle must not carry the
+// '-dirty' suffix git describe appends in a working tree that has uncommitted
+// changes; without an override the shipped APK would report a version the
+// store entry can never match.
+def coreVersion = {
+    def override = System.getenv('TDL_VERSION')
+    if (override != null && !override.trim().isEmpty()) {
+        return override.trim().replaceFirst(/^v/, '')
+    }
+    try {
+        def p = new ProcessBuilder('git', 'describe', '--tags', '--always', '--dirty')
+                .directory(rootDir)
+                .redirectErrorStream(true)
+                .start()
+        def out = p.inputStream.getText('UTF-8').trim()
+        return (p.waitFor() == 0 && out) ? out.replaceFirst(/^v/, '') : 'dev'
+    } catch (Exception ignored) {
+        return 'dev'
+    }
+}().toString()
+
+// versionCode must strictly increase between shipped APKs or Android refuses the
+// install as a downgrade. It used to be a literal that nobody remembered to
+// bump — the last shipped APK still carried 7 while its versionName had already
+// moved to 2.8.3. Deriving it from the semver part of the tag makes the two move
+// together and cannot be forgotten.
+//
+// Layout is major*10000 + minor*100 + patch, so 2.5.0 -> 20500 and 2.8.3 ->
+// 20803: ordering follows the same order a reader expects from versionName.
+// A non-semver coreVersion (a bare hash, or 'dev' outside a checkout) gets 1, so
+// a developer build never outnumbers a real release.
+def coreVersionCode = {
+    def m = coreVersion =~ /^(\d+)\.(\d+)\.(\d+)/
+    // 必须显式 find()：Groovy 里 Matcher 是真值对象，`if (!m)` 永远进不来，
+    // 拿非 semver 的 coreVersion（'dev' 或裸 hash）调用 m.group() 会在配置阶段
+    // 抛 IllegalStateException，整个构建直接失败。
+    if (!m.find()) return 1
+    return (m.group(1) as int) * 10000 + (m.group(2) as int) * 100 + (m.group(3) as int)
+}().toString().toInteger()
+
+// Distribution signing material.
+//
+// Looked up in two places, in order:
+//   1. android/keystore.properties (per-checkout, gitignored)
+//   2. ~/.tdl-release.txt (the release host's own file, mode 600)
+//
+// Neither is committed. When neither exists a release build must FAIL instead
+// of falling back to the debug key: an APK signed with the public debug
+// certificate cannot be shipped (Play rejects it, and any "upgrade" built from
+// another machine carries a different key so devices refuse the install).
+// Debug builds are unaffected, so a fresh checkout can still develop normally.
+def signingProps = new Properties()
+def signingSource = null
+[
+    file('keystore.properties'),
+    new File(System.getProperty('user.home'), '.tdl-release.txt'),
+].each { f ->
+    if (signingSource == null && f.exists()) {
+        f.withInputStream { signingProps.load(it) }
+        signingSource = f
+    }
+}
+def hasReleaseKey = signingSource != null &&
+        signingProps.getProperty('storeFile') &&
+        new File(signingProps.getProperty('storeFile')).exists()
+
+// Fail only when a release artifact is actually requested. Doing this at
+// configuration time unconditionally would break `assembleDebug` on a fresh
+// checkout; checking at task-graph time keeps debug builds working while
+// making a mistake impossible to overlook.
+gradle.taskGraph.whenReady { graph ->
+    def wantsRelease = graph.allTasks.any { t ->
+        t.project == project && t.name.toLowerCase(Locale.ROOT).contains('release')
+    }
+    if (wantsRelease && !hasReleaseKey) {
+        throw new GradleException(
+                '[signing] release build requested but no signing key found. ' +
+                'Release APKs are never signed with the debug key. ' +
+                'Provide android/keystore.properties or ~/.tdl-release.txt ' +
+                '(see `make android-keystore`).')
+    }
+}
+
+android {
+    namespace 'com.tdl.archive.app'
+
+    signingConfigs {
+        release {
+            if (hasReleaseKey) {
+                storeFile file(signingProps.getProperty('storeFile'))
+                storePassword signingProps.getProperty('storePassword')
+                keyAlias signingProps.getProperty('keyAlias')
+                keyPassword signingProps.getProperty('keyPassword')
+                // minSdk is 24, so the v1 (jar) signature buys nothing: every
+                // supported device understands v2. v3 adds key rotation and
+                // proof-of-rotation; v4 is only useful for incremental install.
+                enableV1Signing false
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing false
+            }
+        }
+    }
+    compileSdk 35
+    ndkVersion '27.2.12479018'
+
+    defaultConfig {
+        applicationId 'com.tdl.archive.app'
+        minSdk 24
+        targetSdk 35
+        versionCode coreVersionCode
+        versionName coreVersion
+        // The bridge AAR only carries arm64-v8a. Shipping more ABIs would mean
+        // rebuilding the Go core per architecture for no benefit: every device
+        // that can run this app is 64-bit ARM.
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+        // Shared Telegram application credentials, injected so a freshly
+        // installed app works with no setup screen at all.
+        //
+        // These are the long-standing public api_id/api_hash used by Telegram
+        // Desktop and by the upstream tdl project. They identify the client
+        // application, not a user account, so shipping them is not a secret
+        // leak — but a shared pair can be rate-limited under heavy aggregate
+        // use. Prefs therefore prefers any value the user saves themselves,
+        // and these only act as the fallback.
+        buildConfigField "int", "TDL_APP_ID", "2040"
+        buildConfigField "String", "TDL_APP_HASH", "\"b18441a1ff607e10a989891a5462e627\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Always the vendor key: the task-graph guard above refuses to run
+            // a release task when the material is missing, so this line can
+            // never silently produce a debug-signed artifact.
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        jniLibs {
+            // 压缩 libgojni.so。这包是直链分发的（不走 Play），下载体积是用户
+            // 最先撞上的成本：不压缩时 APK 就是 84 MB，压缩后约 25 MB。
+            //
+            // 代价要认：安装时系统要在设备上解压 84 MB（慢十几秒），且磁盘占用
+            // 从 ~85 MB 变成 ~109 MB（APK 本身 + 解压出来的 lib）。不压缩时
+            // so 直接 mmap，磁盘只占 APK 那一份。
+            //
+            // 哪天改成 Play / App Bundle 分发，这里应改回 false：Play 侧会自行
+            // 压缩分发，mmap 直装更省，也不再有人手工下载 APK。
+            useLegacyPackaging = true
+        }
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'META-INF/AL2.0', 'META-INF/LGPL2.1']
+        }
+    }
+
+    lint {
+        // A lint error is a release blocker, not a warning nobody reads.
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+dependencies {
+    // Only the gomobile AAR. The UI is plain android.* widgets and a WebView,
+    // so pulling in appcompat/webkit would add a Kotlin stdlib several hundred
+    // kilobytes large — and two of its artifacts collide (jdk7/jdk8 shims are
+    // merged into the base stdlib from 1.8 on), which fails the build outright.
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
+}

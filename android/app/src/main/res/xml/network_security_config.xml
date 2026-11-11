@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The archive server runs inside this app and listens on 127.0.0.1, so the
+     WebView must be allowed to speak cleartext to the loopback interface.
+     Every other destination keeps the platform default (cleartext denied). -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
