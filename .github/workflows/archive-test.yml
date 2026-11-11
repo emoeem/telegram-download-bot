@@ -21,8 +21,10 @@ jobs:
       - name: Install Fyne/GLFW build dependencies
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev pkg-config
       - name: Test
-        run: go test ./archive/... ./cmd -count=1
+        run: go test ./archive/... ./license/... ./cmd -count=1
       - name: Vet
-        run: go vet ./archive/... ./cmd
+        run: go vet ./archive/... ./license/... ./cmd
+      - name: Core / extension modules
+        run: (cd core && go build ./...) && (cd extension && go build ./...)
       - name: Build
         run: go build -o /tmp/tdl-check .
