@@ -18,16 +18,70 @@ xattr -cr "/Applications/TelegramDownloadBotDesktop.app"
 
 telegram-download-bot 是一个基于 [tdl](https://github.com/iyear/tdl) 实现的 Telegram MTProto 下载回传机器人 用户把 Telegram 消息链接发给机器人后，机器人会使用已登录的 Telegram 用户账号下载原消息内容，再通过机器人把文本、图片、视频、文件或相册回传给当前聊天
 
+**本仓库是深度改造版**：把 tdl 那种"手动发链接、一次取一条"的下载方式，重造成实时、防删除的归档系统；在此之上还有 Web 网页客户端（PWA）、用同一份 Go 核心编出来的 Android 客户端，以及在线授权体系。对比见下表。
+
 ![Usage demo](./docs/images/demo.gif)
 
 ## 功能
 
-- 通过 Telegram Bot 接收 Telegram 消息链接
-- 使用已登录的 MTProto 用户账号下载消息内容
-- 通过机器人回传文本、图片、视频、文件和相册
-- 在机器人流程内登录 Telegram 用户账号
-- 仅管理员可管理授权
-- 通过配置固定机器人语言，目前支持英文和中文
+### 与原版对比
+
+| 能力 | tdl / 原版机器人 | 本项目 |
+|---|---|---|
+| 下载方式 | 手动发链接，一次一取 | 实时抓取：消息到达即存，无需人守 |
+| 撤回与删除 | 撤回即丢 | 撤回只是打个"已删除"标记：正文、媒体、时间戳逐字节保留（sha256 校验） |
+| 编辑记录 | 不记录 | 每次编辑都留版本 |
+| 媒体存储 | 散落文件 | 内容寻址存储（`objects/<sha256>`）自动去重，配 staging 与 `gc` |
+| 历史回填 | 手动逐条 | 按日期/条数批量回填，幂等写入 |
+| 界面 | CLI / TUI | Web 控制台（可安装的 PWA）+ Android App |
+| 搜索 | 无 | SQLite FTS5 + 内嵌 gse 中文分词，支持 `from:` `has:` `before:` 语法 |
+| 导出 | 无 | CSV/JSON 流式导出（5 万行上限）+ Telegram Desktop 格式 |
+| 通知 | 无 | 关键词规则推送 Webhook / Bot API |
+| 授权 | 无 | Ed25519 在线激活 + 设备绑定 |
+
+原来的机器人流程原样保留：发链接、回内容、仅管理员授权、语言由配置固定（`en`/`zh`）。
+
+### 实时归档核心（重造的下载管线）
+
+- 媒体 worker 与 MTProto 连接并行运行：新消息写入 SQLite 的同时，附件立即下载进 CAS 存储库，事后撤回拿不走，账号所在的无转发（protected）聊天同样覆盖。
+- 并发刻意限速（分批任务 + `TDL_MEDIA_THREADS` 调节），避免触发 `FLOOD_WAIT`；参数写错只会回落默认值，不会停掉归档。
+- 消息里引用的 `t.me` 链接直接走 Telegram API 解析，按同一条 CAS 路径归档。
+- 剩余磁盘低于 1 GiB 时自动暂停媒体下载（消息归档不停）；数据库每日快照（`VACUUM INTO`，保留最近 7 份）。
+- 频道按钮和 `t.me` 链接可由账号自动点击，结果一并归档。
+
+### Web 网页客户端（PWA）
+
+- `tdl archive serve` 把整套控制台从二进制内嵌提供（manifest、service worker、图标、Tailwind 样式全内嵌，可安装到主屏）。
+- **托管模式**：浏览器里扫二维码登录账号（支持两步验证），管理监控源、触发补漏同步（带进度）、查看存储用量。
+- 多账号归档查看器：可拖动时间轴、话题标签、已删除/编辑视图、编号收件箱、媒体画廊、完整搜索语法。
+- 流式导出、关键词通知规则（bot token 只写不读、回显打码）、内置使用指南。
+- 安全加固：CSRF 防护、basic/token 认证、独立激活页、安全擦除接口。
+
+### Android 客户端（同一核心，不需要服务器）
+
+- 整个 Go 归档核心用 `gomobile bind` 编进 AAR（`android/build-aar.sh`）：不是子进程、不是 Termux、不是网站套壳。
+- `ArchiveService` 前台服务保持 MTProto 长连接 7×24 在线；开机自启由 BootReceiver 负责。
+- WebView 加载的就是同一份内嵌 Web 界面（127.0.0.1 回环），手机与桌面共用一个前端（含移动端断点适配）。
+- Telegram 会话密钥存放在应用私有 `filesDir`；设备码接入授权体系。
+- 架构与构建见 [android/README.md](android/README.md)。
+
+### 在线授权体系
+
+- Ed25519 签发、Crockford 编码的密钥，首次激活时绑定设备码。
+- 独立授权服务器（`tdl license server`）记录签发台账，支持撤销/解绑；撤销在下次心跳即生效。
+- CLI 门禁与 Web 激活页双重校验；支持构建时把密钥编译进二进制（`tdl license build`）。
+- 设计、签发与部署文档：[docs/授权体系.md](docs/授权体系.md)、[docs/签发手册.md](docs/签发手册.md)、[docs/在线授权部署.md](docs/在线授权部署.md)。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/用户手册.md](docs/用户手册.md) | 使用者手册（这个软件是什么、为什么、怎么用） |
+| [docs/USAGE.md](docs/USAGE.md) | 管理员命令参考 |
+| [docs/ARCHIVE-INBOX.md](docs/ARCHIVE-INBOX.md) | 编号收件箱工作流 |
+| [docs/ui-spec.md](docs/ui-spec.md) | Web 界面规范 |
+| [docs/授权体系.md](docs/授权体系.md) / [docs/签发手册.md](docs/签发手册.md) / [docs/在线授权部署.md](docs/在线授权部署.md) | 授权设计 / 签发 / 服务器部署 |
+| [docs/AI-QUICKSTART.md](docs/AI-QUICKSTART.md) | AI 助手速查 |
 
 ## 配置
 

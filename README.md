@@ -18,16 +18,70 @@ xattr -cr "/Applications/TelegramDownloadBotDesktop.app"
 
 telegram-download-bot is a Telegram MTProto download-and-send-back bot built on top of [tdl](https://github.com/iyear/tdl). Send a Telegram message link to the bot, and it will download the original message content with a logged-in Telegram user account, then send text, photos, videos, documents, or albums back through the bot.
 
+**This repository is a heavily extended fork.** tdl's manual one-shot downloader is turned into a realtime, delete-proof archiving system, and on top of it sit a web (PWA) console, an Android client built from the same Go core, and an online licence system. See the comparison below.
+
 ![Usage demo](./docs/images/demo.gif)
 
 ## Features
 
-- Receive Telegram message links through a Telegram Bot
-- Download message content with a logged-in MTProto user account
-- Send text, photos, videos, documents, and albums back through the bot
-- Login to a Telegram user account inside the bot flow
-- Admin-only authorization management
-- Fixed bot language from config, currently English and Chinese
+### Original vs this fork
+
+| Capability | tdl / the original bot | This fork |
+|---|---|---|
+| Downloading | send a link, fetch one message at a time | realtime capture: media is stored the moment a message arrives, nothing to babysit |
+| Recalls & deletions | content is gone | a recall only adds a "deleted" tag: text, media and timestamps stay byte-identical (sha256 verified) |
+| Edit history | not tracked | every edit is kept as a version |
+| Media storage | loose files | content-addressed store (`objects/<sha256>`) with dedupe, staging dir and `gc` |
+| History backfill | manual, per link | batch backfill by date/count, idempotent keyed writes |
+| Interface | CLI / TUI | web console (installable PWA) + Android app |
+| Search | none | SQLite FTS5 + embedded gse Chinese tokenizer; `from:` `has:` `before:` syntax |
+| Export | none | streaming CSV/JSON (50k-row cap) and Telegram Desktop format |
+| Notifications | none | keyword rules pushed via Webhook / Bot API |
+| Licensing | none | Ed25519 online activation with device binding |
+
+The original bot flow is unchanged: message link in, content back out, admin-only authorization, fixed bot language (`en`/`zh`).
+
+### Realtime archive core (the download pipeline, rebuilt)
+
+- A media worker runs next to the MTProto connection: new messages are written to SQLite and their attachments downloaded to the CAS store immediately, so a later recall cannot take them away, including in protected (no-forward) chats the account is a member of.
+- Concurrency is deliberately paced (batched jobs, `TDL_MEDIA_THREADS` knob) so the account never trips `FLOOD_WAIT`; a typo in the knob falls back to the default instead of stopping archiving.
+- Quoted `t.me` message links are resolved through the Telegram API itself and archived through the same CAS path as native media.
+- Downloads pause automatically below 1 GiB free disk (message archiving never stops); the database is snapshotted daily (`VACUUM INTO`, last 7 kept).
+- Channel buttons and `t.me` links can be auto-clicked by the account, with results archived.
+
+### Web client (PWA)
+
+- `tdl archive serve` serves the whole console from the binary (embedded, works as an installed PWA: manifest, service worker, icons, Tailwind-built stylesheet).
+- **Managed mode**: scan a QR code in the browser to log the account in (2FA supported), manage monitor sources, trigger gap-fill syncs with progress, inspect storage.
+- Multi-account archive viewer with draggable timeline scrubber, forum topic chips, deleted/edited views, serial inbox, media gallery and full search syntax.
+- Streaming export, keyword notification rules (bot token write-only, masked), storage usage view, built-in guide.
+- Hardened: CSRF protection, basic/token auth, dedicated activation page, secure data-wipe endpoint.
+
+### Android client (same core, no server needed)
+
+- The whole Go archive core is compiled into an AAR with `gomobile bind` (`android/build-aar.sh`): not a subprocess, not Termux, not a website wrapper.
+- `ArchiveService` foreground service keeps the MTProto connection alive 24/7; a boot receiver restarts it after reboot.
+- The WebView loads the exact same embedded web UI from `127.0.0.1`, so phone and desktop share one frontend (mobile breakpoints included).
+- Session keys live in the app's private `filesDir`; the device id binds into the licence system.
+- See [android/README.md](android/README.md) for architecture and build steps.
+
+### Online licence system
+
+- Ed25519-signed licence keys in Crockford encoding, bound to a device id at first activation.
+- A standalone licence server (`tdl license server`) records issuance and can revoke/release keys; revocation takes effect on the next heartbeat.
+- The CLI gate and the web activation page both enforce it; keys can be embedded at build time (`tdl license build`).
+- Design, issuing and deployment guides: [docs/授权体系.md](docs/授权体系.md), [docs/签发手册.md](docs/签发手册.md), [docs/在线授权部署.md](docs/在线授权部署.md).
+
+## Documentation
+
+| Doc | Content |
+|---|---|
+| [docs/用户手册.md](docs/用户手册.md) | end-user manual (Chinese, what/why/how) |
+| [docs/USAGE.md](docs/USAGE.md) | operator command reference |
+| [docs/ARCHIVE-INBOX.md](docs/ARCHIVE-INBOX.md) | serial inbox workflow |
+| [docs/ui-spec.md](docs/ui-spec.md) | web UI specification |
+| [docs/授权体系.md](docs/授权体系.md) / [docs/签发手册.md](docs/签发手册.md) / [docs/在线授权部署.md](docs/在线授权部署.md) | licence design / issuing / server deployment |
+| [docs/AI-QUICKSTART.md](docs/AI-QUICKSTART.md) | quickstart for AI assistants |
 
 ## Configuration
 
