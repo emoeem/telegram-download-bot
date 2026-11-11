@@ -23,6 +23,11 @@ import (
 // report. It never fails the caller on a missing file: the row is already gone,
 // so a file that vanished earlier is the expected outcome, not an error.
 func ApplyPurge(root string, rep store.PurgeReport) (removed int, bytesFreed int64) {
+	// A full wipe has no per-serial list to walk: every view is gone, so drop
+	// the numbering tree in one step. It is rebuilt lazily by the next relink.
+	if rep.Everything {
+		_ = os.RemoveAll(SerialViewRoot(root))
+	}
 	for _, path := range rep.Files {
 		st, err := os.Stat(path)
 		if err != nil {

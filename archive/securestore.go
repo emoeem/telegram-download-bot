@@ -95,16 +95,69 @@ func SecureNamespace(ctx context.Context, inner cstorage.Storage, passphrase str
 	}
 	s := &EncryptedStorage{inner: inner, aead: aead}
 	if fresh {
-		// first encrypted open: seal pre-existing plaintext session material
-		for _, k := range []string{keygen.New("app"), keygen.New("session")} {
-			if v, e := inner.Get(ctx, k); e == nil {
-				if e = s.Set(ctx, k, v); e != nil {
-					return nil, e
-				}
-			}
+		// First encrypted open. Seal every pre-existing plaintext value, not
+		// just app/session: a namespace may also hold other secrets (for
+		// example the app hash written by an older build or an account
+		// namespace key) and leaving those readable would defeat the point of
+		// turning encryption on.
+		if err := s.sealLegacyPlaintext(ctx); err != nil {
+			return nil, err
 		}
 	}
 	return s, nil
+}
+
+// namespaceKeyLister is an optional capability of the underlying storage.
+// storage.Storage only mandates Get/Set/Delete, so a backend that cannot
+// enumerate its keys is handled by the fallback below.
+type namespaceKeyLister interface {
+	Keys(context.Context) ([]string, error)
+}
+
+// fallbackSecretKeys are the keys guaranteed to hold session material, used
+// only when the backend cannot enumerate the namespace.
+var fallbackSecretKeys = []string{keygen.New("app"), keygen.New("session")}
+
+// sealLegacyPlaintext seals every value in the namespace that is not already
+// sealed. Values are fetched through the inner storage so what is checked is
+// the bytes actually at rest. encMetaKey is skipped because the salt has to be
+// readable without a key.
+func (s *EncryptedStorage) sealLegacyPlaintext(ctx context.Context) error {
+	lister, ok := s.inner.(namespaceKeyLister)
+	if !ok {
+		for _, k := range fallbackSecretKeys {
+			v, e := s.inner.Get(ctx, k)
+			if e == nil {
+				if e = s.Set(ctx, k, v); e != nil {
+					return e
+				}
+			}
+		}
+		return nil
+	}
+	keys, err := lister.Keys(ctx)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if k == encMetaKey {
+			continue
+		}
+		v, err := s.inner.Get(ctx, k)
+		if err != nil {
+			if errors.Is(err, cstorage.ErrNotFound) {
+				continue
+			}
+			return err
+		}
+		if isSealed(v) {
+			continue
+		}
+		if err := s.Set(ctx, k, v); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *EncryptedStorage) seal(plain []byte) ([]byte, error) {
@@ -160,18 +213,13 @@ func (s *EncryptedStorage) Delete(ctx context.Context, key string) error {
 	return s.inner.Delete(ctx, key)
 }
 
-// Reseal re-encrypts the sensitive session/app keys under the current key.
+// Reseal re-encrypts every plaintext value under the current key.
 // Used after a fresh login: login helpers write the new session in plaintext
-// through their own raw KV handle, and this seals it again post-hoc.
+// through their own raw KV handle, and this seals it again post-hoc. Sealing
+// the whole namespace instead of only app/session also cleans up material an
+// older build wrote before full migration existed.
 func (s *EncryptedStorage) Reseal(ctx context.Context) error {
-	for _, k := range []string{keygen.New("app"), keygen.New("session")} {
-		if v, e := s.inner.Get(ctx, k); e == nil {
-			if e = s.Set(ctx, k, v); e != nil {
-				return e
-			}
-		}
-	}
-	return nil
+	return s.sealLegacyPlaintext(ctx)
 }
 
 var _ cstorage.Storage = (*EncryptedStorage)(nil)

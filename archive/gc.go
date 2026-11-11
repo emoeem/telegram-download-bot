@@ -37,6 +37,11 @@ type GCReport struct {
 }
 
 // objectPath is the CAS location of a sha256.
+//
+// Callers must reject short values before calling this: files.sha256 is a TEXT
+// primary key, so a row can legitimately hold an empty or truncated value, and
+// slicing it here panics — which in the middle of a scheduled sweep takes the
+// whole process down. tgexport.mediaObjectPath applies the same guard.
 func objectPath(root, sha string) string {
 	return filepath.Join(root, "objects", sha[:2], sha[2:4], sha)
 }
@@ -113,6 +118,10 @@ func GarbageCollect(ctx context.Context, s *store.Store, root string, o GCOption
 		return rep, err
 	}
 	for _, f := range orphans {
+		// 残缺 sha 无法定位对象，跳过而不是让 objectPath 切片时 panic。
+		if len(f.SHA256) < 4 {
+			continue
+		}
 		size := f.Size
 		if st, err := os.Stat(objectPath(root, f.SHA256)); err == nil {
 			size = st.Size()
@@ -143,6 +152,9 @@ func GarbageCollect(ctx context.Context, s *store.Store, root string, o GCOption
 			return rep, err
 		}
 		for _, sha := range shas {
+			if len(sha) < 4 {
+				continue
+			}
 			if _, err := os.Stat(objectPath(root, sha)); err == nil {
 				continue
 			}

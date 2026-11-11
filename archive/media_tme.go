@@ -11,7 +11,6 @@ import (
 
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/peers"
-	"github.com/gotd/td/telegram/query/messages"
 	"github.com/gotd/td/tg"
 	"github.com/iyear/tdl/archive/store"
 )
@@ -71,7 +70,7 @@ func (w *MediaWorker) processTMe(ctx context.Context, j store.MediaJob) error {
 		}
 		return w.fail(ctx, j, err, false)
 	}
-	file, ok := messages.Elem{Msg: post}.File()
+	file, ok := messageFile(post)
 	if !ok {
 		wctx, cancelState := stateCtx(ctx)
 		defer cancelState()

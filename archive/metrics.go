@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"io"
 	"context"
 	"log/slog"
 	"net"
@@ -77,25 +78,87 @@ type httpMetricsJSON struct {
 	AvgDurationMS float64 `json:"avg_duration_ms"`
 }
 
+// snapshotTTL is how long an aggregated snapshot is served from cache before
+// one caller recomputes it.
+const snapshotTTL = 5 * time.Second
+
 type metricsCache struct {
-	mu       sync.Mutex
-	at       time.Time
-	snapshot store.Metrics
+	mu         sync.Mutex
+	at         time.Time
+	snapshot   store.Metrics
+	refreshing bool
+}
+
+type serialCache struct {
+	mu         sync.Mutex
+	at         time.Time
+	snapshot   store.SerialSummary
+	refreshing bool
+}
+
+// serialSummary 走 5 秒缓存：/api/serials 是 UI 轮询页，而 SerialSummary 是
+// media JOIN messages 的全表聚合——几十万行的库上每次轮询都现算会把
+// SQLite 读锁占满（metricsSnapshot 同款模式的复制，TTL 语义一致）。
+//
+// 缓存未命中时不再持锁等聚合算完：那是全表扫描，把 mu 跨在它上面会让所有
+// 并发调用方一起排队。改成立刻交出上一份快照，由第一个发现过期的调用方在
+// 锁外刷新；刷新期间其他人拿旧值，刷新失败也保留旧值而不是把错误抛给 UI。
+func (w *WebServer) serialSummary(ctx context.Context) (store.SerialSummary, error) {
+	w.serialCache.mu.Lock()
+	if time.Since(w.serialCache.at) < snapshotTTL {
+		snap := w.serialCache.snapshot
+		w.serialCache.mu.Unlock()
+		return snap, nil
+	}
+	if w.serialCache.refreshing {
+		stale := w.serialCache.snapshot
+		w.serialCache.mu.Unlock()
+		return stale, nil
+	}
+	w.serialCache.refreshing = true
+	w.serialCache.mu.Unlock()
+
+	snapshot, err := w.store().SerialSummary(ctx)
+
+	w.serialCache.mu.Lock()
+	w.serialCache.refreshing = false
+	if err == nil {
+		w.serialCache.snapshot = snapshot
+		w.serialCache.at = time.Now()
+	} else if !w.serialCache.at.IsZero() {
+		snapshot, err = w.serialCache.snapshot, nil
+	}
+	w.serialCache.mu.Unlock()
+	return snapshot, err
 }
 
 func (w *WebServer) metricsSnapshot(ctx context.Context) (store.Metrics, error) {
 	w.metricsCache.mu.Lock()
-	defer w.metricsCache.mu.Unlock()
-	if time.Since(w.metricsCache.at) < 5*time.Second {
-		return w.metricsCache.snapshot, nil
+	if time.Since(w.metricsCache.at) < snapshotTTL {
+		snap := w.metricsCache.snapshot
+		w.metricsCache.mu.Unlock()
+		return snap, nil
 	}
+	if w.metricsCache.refreshing {
+		stale := w.metricsCache.snapshot
+		w.metricsCache.mu.Unlock()
+		return stale, nil
+	}
+	w.metricsCache.refreshing = true
+	w.metricsCache.mu.Unlock()
+
 	snapshot, err := w.store().MetricsSnapshot(ctx)
-	if err != nil {
-		return store.Metrics{}, err
+
+	w.metricsCache.mu.Lock()
+	w.metricsCache.refreshing = false
+	if err == nil {
+		w.metricsCache.snapshot = snapshot
+		w.metricsCache.at = time.Now()
+	} else if !w.metricsCache.at.IsZero() {
+		snapshot, err = w.metricsCache.snapshot, nil
 	}
-	w.metricsCache.snapshot = snapshot
-	w.metricsCache.at = time.Now()
-	return snapshot, nil
+	w.metricsCache.mu.Unlock()
+	return snapshot, err
 }
 
 func (w *WebServer) metricsAPI(rw http.ResponseWriter, r *http.Request) {
@@ -140,6 +203,19 @@ func (w *responseRecorder) Write(p []byte) (int, error) {
 		w.status = http.StatusOK
 	}
 	return w.ResponseWriter.Write(p)
+}
+
+// ReadFrom 让 http.ServeFile 的 sendfile 快速路径穿透记录器：
+// 没有它，每个 /media/ 大视频（几 GB）都要经 32KB 用户态缓冲整段拷贝，
+// 在手机上纯属 CPU/耗电浪费。状态仍按首写语义记录。
+func (w *responseRecorder) ReadFrom(r io.Reader) (int64, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	if rf, ok := w.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(r)
+	}
+	return io.Copy(w.ResponseWriter, r)
 }
 
 func (w *responseRecorder) Unwrap() http.ResponseWriter { return w.ResponseWriter }

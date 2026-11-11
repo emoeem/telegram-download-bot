@@ -51,11 +51,20 @@ type Controller struct {
 	stateMu sync.RWMutex
 	state   CtrlState
 
+	// loginMu guards the single flight login/session-import flow. QR and phone
+	// login share it because only one of them may own the pending client.
 	loginMu      sync.Mutex
 	qrToken      atomic.Value // string
 	qrCancel     context.CancelFunc
 	qrPwd        chan string
-	qrDone       chan struct{}
+	codeCh       chan string
+	// loginGen 标识"当前是哪一个登录流"。defer 式清理必须比对代际，
+	// 否则被 stopQR 取代的旧 goroutine 收尾时会重置新流的字段、并 close
+	// 新流的 qrDone（close of closed channel panic，直接杀死 serve 进程）。
+	loginGen     uint64
+	codeSent     bool
+	loginKind    string // "" | loginKindQR | loginKindPhone
+	loginPhone   string
 	passwordMode bool
 	qrErr        string
 
@@ -93,9 +102,15 @@ const (
 
 	QRIdle           = "idle"
 	QRPending        = "pending"
+	QRCodeSent       = "code_sent"
 	QRPasswordNeeded = "password_needed"
 	QRAuthorized     = "authorized"
 	QRError          = "error"
+
+	// loginKind* record which flow owns the pending login client so the UI can
+	// tell "scan a QR code" from "type the code we just sent you".
+	loginKindQR    = "qr"
+	loginKindPhone = "phone"
 )
 
 type Job struct {
@@ -358,7 +373,26 @@ func (c *Controller) QRState() string {
 	if c.passwordMode {
 		return QRPasswordNeeded
 	}
+	if c.codeSent {
+		return QRCodeSent
+	}
 	return QRPending
+}
+
+// LoginKind reports which flow currently owns the pending login client:
+// "qr", "phone", or "" when nothing is running.
+func (c *Controller) LoginKind() string {
+	c.loginMu.Lock()
+	defer c.loginMu.Unlock()
+	return c.loginKind
+}
+
+// LoginPhone returns the phone number of the running phone login, masked so the
+// value can be safely echoed back to the UI.
+func (c *Controller) LoginPhone() string {
+	c.loginMu.Lock()
+	defer c.loginMu.Unlock()
+	return maskPhone(c.loginPhone)
 }
 
 func (c *Controller) QRError() string {
@@ -496,26 +530,25 @@ func (c *Controller) StartQRLogin() error {
 		return nil // already running
 	}
 	ctx, cancel := context.WithCancel(c.ctx)
+	c.loginGen++
+	gen := c.loginGen
 	c.qrCancel = cancel
 	c.qrPwd = make(chan string, 1)
-	c.qrDone = make(chan struct{})
+	c.codeCh = nil
+	c.codeSent = false
+	c.loginKind = loginKindQR
+	c.loginPhone = ""
 	c.passwordMode = false
 	c.qrErr = ""
 	c.loginMu.Unlock()
 	c.qrToken.Store("")
 
-	go c.runQRLogin(ctx)
+	go c.runQRLogin(ctx, gen)
 	return nil
 }
 
-func (c *Controller) runQRLogin(ctx context.Context) {
-	defer func() {
-		c.loginMu.Lock()
-		c.qrCancel = nil
-		c.passwordMode = false
-		c.loginMu.Unlock()
-		close(c.qrDone)
-	}()
+func (c *Controller) runQRLogin(ctx context.Context, gen uint64) {
+	defer c.finishLoginFlow(gen)
 
 	d := tg.NewUpdateDispatcher()
 	lc, err := tclientcore.New(ctx, tclientcore.Options{
@@ -527,7 +560,7 @@ func (c *Controller) runQRLogin(ctx context.Context) {
 		UpdateHandler:    d,
 	})
 	if err != nil {
-		c.setQRError(err.Error())
+		c.setQRError(loginErrText(err))
 		return
 	}
 
@@ -569,7 +602,7 @@ func (c *Controller) runQRLogin(ctx context.Context) {
 	})
 	if err != nil && ctx.Err() == nil {
 		if c.State().State != StateAuthorized {
-			c.setQRError(err.Error())
+			c.setQRError(loginErrText(err))
 		}
 	}
 
@@ -603,12 +636,32 @@ func (c *Controller) SubmitPassword(pwd string) error {
 func (c *Controller) stopQR() {
 	c.loginMu.Lock()
 	cancel := c.qrCancel
+	c.loginGen++ // 使在途旧流的收尾失去所有权（见 finishLoginFlow）
 	c.qrCancel = nil
 	c.passwordMode = false
+	c.codeSent = false
+	c.loginKind = ""
+	c.loginPhone = ""
 	c.loginMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
+}
+
+// finishLoginFlow 收尾一个登录流：仅当调用方仍是"当前流"（gen 匹配）时才
+// 重置共享登录字段。被 stopQR 或新流取代的旧 goroutine 收尾时在这里止步，
+// 避免重置新流的 qrCancel / 关闭新流的 channel。
+func (c *Controller) finishLoginFlow(gen uint64) {
+	c.loginMu.Lock()
+	defer c.loginMu.Unlock()
+	if gen != c.loginGen {
+		return
+	}
+	c.qrCancel = nil
+	c.passwordMode = false
+	c.codeSent = false
+	c.loginKind = ""
+	c.loginPhone = ""
 }
 
 // CancelQR aborts a running QR login.
@@ -756,6 +809,9 @@ func (c *Controller) startJob(name string, t store.Target, kind string, limit in
 	}
 	go func() {
 		defer cancel()
+		// 终态后从内存索引摘除：DB 行是历史事实来源（Jobs() 走 ListJobs），
+		// map 里留着只会让长驻进程越积越多，还把 cancel 闭包钉在内存里。
+		defer c.forgetJob(id)
 		n, runErr := col.Backfill(jobCtx, rt, t, BackfillOptions{Limit: limit, Resume: resume, Since: t.Since, Progress: progress})
 		update(func(j *Job) { j.Archived = n; j.ProgressDone = n })
 		_ = c.Store.UpdateJobProgress(context.Background(), id, n, total)
@@ -794,6 +850,13 @@ func (c *Controller) startJob(name string, t store.Target, kind string, limit in
 		logJobFinished(jobLogger, now, "done", nil)
 	}()
 	return job, nil
+}
+
+// forgetJob 把已终态的 job 从内存索引摘除。
+func (c *Controller) forgetJob(id int64) {
+	c.jobsMu.Lock()
+	delete(c.jobs, id)
+	c.jobsMu.Unlock()
 }
 
 func (c *Controller) Jobs() []Job {

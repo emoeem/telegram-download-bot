@@ -42,6 +42,66 @@ func insertMediaTestMessage(t *testing.T, s *Store, id int, sender int64, date t
 	}
 }
 
+// A claimed job must leave the pending set so a second worker pass cannot
+// download it concurrently, and releasing it (graceful stop) must put it back.
+func TestClaimPendingMediaIsExclusive(t *testing.T) {
+	s := newMediaTestStore(t)
+	ctx := context.Background()
+	insertMediaTestMessage(t, s, 1, 42, time.Unix(1700000000, 0), "image/jpeg", "photo", "pending")
+
+	first, err := s.ClaimPendingMedia(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 1 || first[0].ID == 0 {
+		t.Fatalf("first claim = %+v, want one job", first)
+	}
+	status := ""
+	if err := s.DB().QueryRow("SELECT status FROM media WHERE id=?", first[0].ID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "running" {
+		t.Fatalf("claimed status = %q, want running", status)
+	}
+	// A second claimer must see nothing: the row is already owned.
+	if again, err := s.ClaimPendingMedia(ctx, 10); err != nil || len(again) != 0 {
+		t.Fatalf("second claim = %+v err=%v, want none", again, err)
+	}
+	if jobs, _ := s.PendingMedia(ctx, 10); len(jobs) != 0 {
+		t.Fatalf("pending view still lists a running job: %+v", jobs)
+	}
+
+	// Graceful stop returns the claim to the queue.
+	if err := s.ReleaseMediaClaims(ctx, []int64{first[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	reclaimed, err := s.ClaimPendingMedia(ctx, 10)
+	if err != nil || len(reclaimed) != 1 {
+		t.Fatalf("reclaim = %+v err=%v, want one job", reclaimed, err)
+	}
+}
+
+// A crashed worker's claim must expire, otherwise the job is stuck in 'running'
+// forever and never downloaded again.
+func TestClaimPendingMediaReclaimsStaleLease(t *testing.T) {
+	s := newMediaTestStore(t)
+	ctx := context.Background()
+	insertMediaTestMessage(t, s, 1, 42, time.Unix(1700000000, 0), "image/jpeg", "photo", "pending")
+	first, err := s.ClaimPendingMedia(ctx, 10)
+	if err != nil || len(first) != 1 {
+		t.Fatalf("claim = %+v err=%v", first, err)
+	}
+	// Simulate a claim left behind by a process that died long ago.
+	if _, err := s.DB().Exec("UPDATE media SET updated_at=? WHERE id=?",
+		time.Now().Add(-2*mediaClaimLease).Unix(), first[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.ClaimPendingMedia(ctx, 10)
+	if err != nil || len(again) != 1 {
+		t.Fatalf("stale claim not reclaimed: %+v err=%v", again, err)
+	}
+}
+
 func TestListMediaMessagesImagesOnly(t *testing.T) {
 	s := newMediaTestStore(t)
 	base := time.Unix(1700000000, 0)

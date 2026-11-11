@@ -80,6 +80,48 @@ func TestFreeDiskBytes(t *testing.T) {
 	}
 }
 
+func TestStorageEndpointCachesWithinTTL(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "tgarchive.db")
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ts := httptest.NewServer(NewWebServer(s).Handler())
+	defer ts.Close()
+
+	get := func() storageAPIResponse {
+		t.Helper()
+		resp, err := http.Get(ts.URL + "/api/storage")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var st storageAPIResponse
+		if err := json.NewDecoder(resp.Body).Decode(&st); err != nil {
+			t.Fatal(err)
+		}
+		return st
+	}
+
+	first := get()
+	// A file created after the first response must not appear until the cache
+	// expires; otherwise every UI poll would walk the whole objects tree again.
+	objDir := filepath.Join(dir, "objects", "aa", "bb")
+	if err := os.MkdirAll(objDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(objDir, "object"), make([]byte, 4096), 0644); err != nil {
+		t.Fatal(err)
+	}
+	second := get()
+	if second.ObjectsBytes != first.ObjectsBytes {
+		t.Fatalf("storage response was not cached: first=%d second=%d",
+			first.ObjectsBytes, second.ObjectsBytes)
+	}
+}
+
 func TestStorageEndpoint(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "tgarchive.db")
 	s, err := store.Open(dbPath)

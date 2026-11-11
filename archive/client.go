@@ -12,6 +12,7 @@ import (
 	tclientcore "github.com/iyear/tdl/core/tclient"
 	"github.com/iyear/tdl/pkg/consts"
 	"github.com/spf13/viper"
+	"log/slog"
 	"strconv"
 	"strings"
 )
@@ -258,7 +259,15 @@ func Resolve(ctx context.Context, rt *Runtime, target string) (peers.Peer, error
 	if p, err := pm.ResolveChannelID(ctx, id); err == nil {
 		return p, nil
 	}
-	return pm.ResolveUserID(ctx, id)
+	p, err := pm.ResolveUserID(ctx, id)
+	if err != nil {
+		// 纯数字 ID 解析用户时，缓存里没有 access_hash 就会发
+		// InputUser{AccessHash:0}，服务器回一个空结果。原始错误
+		// （got empty result for InputUser{...}）对用户毫无意义，
+		// 换成能照着做的提示，同时用 %w 保留原因给日志。
+		return nil, fmt.Errorf("无法按 ID 解析聊天 %d：请改用 @用户名，或从「从我的聊天列表选择」重新选一次（%w）", id, err)
+	}
+	return p, nil
 }
 
 // ResolveChatID resolves a stored chat id (user/basic group/channel) through
@@ -271,6 +280,35 @@ func ResolveChatID(ctx context.Context, rt *Runtime, id int64) (peers.Peer, erro
 		return p, nil
 	}
 	return rt.Peers.ResolveUserID(ctx, id)
+}
+
+// ResolveChatWithUsername resolves a chat by id and, when that fails, by its
+// public username.
+//
+// Bots are the reason this exists. A bot chat is a *tg.PeerUser, and Telegram
+// does not repeat the bot's User object on every update, so the archive never
+// learns its access_hash. peers.ResolveUserID then sends
+// InputUser{AccessHash:0} and the server answers 400 CONNECTION_LAYER_INVALID —
+// which is what made every media job of a monitored bot fail with "get users".
+// contacts.resolveUsername needs no hash, and gotd writes the resolved peer
+// into its own storage, so one successful call here also unblocks the plain
+// resolve-by-id path for the rest of the process lifetime.
+func ResolveChatWithUsername(ctx context.Context, rt *Runtime, id int64, username string) (peers.Peer, error) {
+	p, err := ResolveChatID(ctx, rt, id)
+	if err == nil {
+		return p, nil
+	}
+	if strings.TrimSpace(username) == "" {
+		return nil, err
+	}
+	q, uerr := rt.Peers.ResolveDomain(ctx, username)
+	if uerr != nil {
+		slog.WarnContext(ctx, "archive resolve: username fallback failed",
+			"chat", id, "username", username, "error", uerr)
+		// Report the id-based failure: it names the peer the caller asked for.
+		return nil, err
+	}
+	return q, nil
 }
 
 // parseTarget extracts a resolvable token from raw input, handling t.me link

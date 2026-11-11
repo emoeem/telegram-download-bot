@@ -36,9 +36,21 @@ type PurgeSelector struct {
 	Messages bool
 	// DryRun computes the report without deleting anything.
 	DryRun bool
+	// All selects every archived message and media object. It exists because
+	// the empty-selector guard below is there to stop a typo from wiping the
+	// archive — so wiping it has to be something a caller asks for by name,
+	// not something that happens when a flag is forgotten.
+	//
+	// Configuration is deliberately out of scope: monitored targets,
+	// notification rules, destinations and settings survive, because clearing
+	// the archive should not silently stop watching.
+	All bool
 }
 
 func (s PurgeSelector) empty() bool {
+	if s.All {
+		return false
+	}
 	return s.Serial == 0 && s.ChatID == 0 && s.Until.IsZero() && s.Kind == ""
 }
 
@@ -52,6 +64,9 @@ type PurgeReport struct {
 	// removed. The caller unlinks them.
 	Files  []string `json:"files"`
 	DryRun bool     `json:"dry_run"`
+	// Everything reports that no selector narrowed the purge, so the caller
+	// should drop derived views wholesale rather than one serial at a time.
+	Everything bool `json:"everything"`
 }
 
 type purgeRow struct {
@@ -69,8 +84,86 @@ type purgeRow struct {
 
 // Purge deletes archive rows selected by sel and reports the files that became
 // unreferenced.
+// purgeEverything wipes archived content: messages, media rows, the tables
+// derived from them, and the run history that only means anything while those
+// rows exist. Configuration is untouched on purpose — a wipe must not silently
+// stop monitoring, and the operator who clears the archive usually wants the
+// watcher to keep filling it again.
+func (s *Store) purgeEverything(ctx context.Context, sel PurgeSelector) (PurgeReport, error) {
+	rep := PurgeReport{DryRun: sel.DryRun, Everything: true}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM messages`).Scan(&rep.Messages); err != nil {
+		return rep, err
+	}
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*), COALESCE(sum(size),0) FROM media`).Scan(&rep.Media, &rep.Bytes); err != nil {
+		return rep, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT COALESCE(original_path,'') FROM media WHERE COALESCE(original_path,'') <> ''`)
+	if err != nil {
+		return rep, err
+	}
+	seen := map[string]struct{}{}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return rep, err
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		rep.Files = append(rep.Files, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return rep, err
+	}
+	if sel.DryRun {
+		return rep, nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return rep, err
+	}
+	defer tx.Rollback()
+
+	// Order is dependency order, not alphabetical: anything pointing at a
+	// message row goes before the row itself, so a later schema that grows a
+	// real foreign key still runs this list cleanly.
+	for _, stmt := range []string{
+		`DELETE FROM message_reactions`,
+		`DELETE FROM message_entities`,
+		`DELETE FROM message_links`,
+		`DELETE FROM message_events`,
+		`DELETE FROM message_edits`,
+		`DELETE FROM material_messages`,
+		`DELETE FROM materials`,
+		`DELETE FROM media`,
+		`DELETE FROM files`,
+		`DELETE FROM messages`,
+		`DELETE FROM sync_cursors`,
+		`DELETE FROM autoclick_queue`,
+		`DELETE FROM autoclick_log`,
+		`DELETE FROM autoclick_targets`,
+		`DELETE FROM notify_log`,
+		`DELETE FROM jobs`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return rep, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
+
 func (s *Store) Purge(ctx context.Context, sel PurgeSelector) (PurgeReport, error) {
 	rep := PurgeReport{DryRun: sel.DryRun}
+	if sel.All {
+		return s.purgeEverything(ctx, sel)
+	}
 	if sel.empty() {
 		return rep, fmt.Errorf("purge selector is empty: pass --serial, --chat or --until so a typo cannot wipe the archive")
 	}
@@ -148,11 +241,23 @@ func (s *Store) Purge(ctx context.Context, sel PurgeSelector) (PurgeReport, erro
 	}
 
 	if sel.DryRun {
+		// 与 purgeItemsTx 的 refcount 逻辑保持一致：内容去重共享的对象只有
+		// 引用清零才真正删除。预览若不算 ref_count，会把"承诺删除但实际
+		// 保留"的对象列进去——操作员核对要清空的内容时看到的就是这个数。
 		for _, it := range items {
-			if it.path != "" && bySHA[it.sha] > 0 {
-				rep.Files = append(rep.Files, it.path)
-				bySHA[it.sha] = 0 // report each object once
+			if it.path == "" || bySHA[it.sha] <= 0 {
+				continue
 			}
+			var left int
+			_ = s.db.QueryRowContext(ctx,
+				"SELECT ref_count FROM files WHERE sha256=?", it.sha).Scan(&left)
+			// 无 files 行（旧版导入）：与 purgeItemsTx 同语义，视为归我们删。
+			if left-bySHA[it.sha] > 0 {
+				bySHA[it.sha] = 0 // 仍被选择之外引用：预览如实排除
+				continue
+			}
+			rep.Files = append(rep.Files, it.path)
+			bySHA[it.sha] = 0 // report each object once
 		}
 		return rep, nil
 	}

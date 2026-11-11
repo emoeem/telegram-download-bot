@@ -13,16 +13,17 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/skip2/go-qrcode"
 
 	"github.com/iyear/tdl/archive/store"
-	"github.com/iyear/tdl/pkg/consts"
+	"github.com/iyear/tdl/license"
 )
 
-//go:embed web/index.html web/static/theme.css
+//go:embed web/index.html web/manifest.webmanifest web/sw.js web/static/theme.css web/static/app.css web/static/icon-192.png web/static/icon-512.png
 var webAssets embed.FS
 
 var indexHTMLAsset = func() string {
@@ -58,7 +59,31 @@ type WebAuthConfig struct {
 type WebServer struct {
 	Store *store.Store
 	Auth  WebAuthConfig
-	Ctl   *Controller // optional; nil keeps the server a read-only viewer
+	// Licence, when set and configured, gates every route behind an activation.
+	// A nil or unconfigured manager means this deployment has no licence gate,
+	// which is the behaviour every existing test and the desktop build rely on.
+	Licence *license.Manager
+	// LicenceServer is the online activation service, when the deployment has
+	// one. Empty keeps activation purely offline (signature + device binding
+	// only); a non-empty value makes every activation register with the server
+	// first, which is what enables one-key-one-device enforcement and remote
+	// revocation.
+	//
+	// The Android build compiles a default in via -X so phone users get online
+	// activation without any settings screen; `--license-server` overrides it
+	// for desktop and container deployments.
+	LicenceServer string
+	// LicenceCheckInterval is how long a successful online check stays valid
+	// before the gate asks the server again. Zero means the default (12h).
+	LicenceCheckInterval time.Duration
+	// Now overrides the clock used by the licence gate. nil means time.Now.
+	// It exists so tests can cross an expiry boundary without sleeping; every
+	// other clock read in the server keeps using time.Now.
+	Now func() time.Time
+	// NotifyHTTP overrides the client used for the webhook test endpoint.
+	// nil keeps the SSRF-guarded default; tests point it at a loopback server.
+	NotifyHTTP *http.Client
+	Ctl *Controller // optional; nil keeps the server a read-only viewer
 	// Accounts, when set, makes Store and Ctl projections of the account that
 	// is currently active. The plain fields stay as the fallback so a read-only
 	// server — and every test that builds one directly — keeps working.
@@ -69,12 +94,31 @@ type WebServer struct {
 	Root         string
 	httpMetrics  HTTPMetrics
 	metricsCache metricsCache
+	serialCache  serialCache
+	// storageCache memoises the recursive directory walk behind /api/storage.
+	// The UI polls that endpoint; without a cache every poll walks the whole
+	// objects/ tree, which is a visible disk-IO spike on a large archive.
+	storageMu   sync.Mutex
+	storageAt   time.Time
+	storageData storageAPIResponse
+	storageOK   bool
+	// licenceCheck 单飞门：到期核对同一时刻只放一个请求出网（零值可用）。
+	licenceCheck atomic.Bool
 	// loginLimiter throttles password guessing; the zero value is usable.
 	loginLimiter loginLimiter
 	// login holds the live credential. It is an atomic pointer rather than a
 	// field on Auth because /api/auth/account mutates it while other requests
 	// read it, and a torn read here would silently accept a wrong password.
 	login atomic.Pointer[loginCredential]
+	// csrfOnce/csrfToken issue the hidden token in the activation form.
+	//
+	// The Origin/Host comparison assumed a plain browser: Android WebView sends
+	// Origin: null for loopback document posts, and a reverse proxy rewrites
+	// Host, so both legitimate clients were answered with 403 on submit. The
+	// token is emitted by this same process and read back from the form body,
+	// which holds regardless of what the network stack does to the headers.
+	csrfOnce  sync.Once
+	csrfToken string
 }
 
 // store resolves the database of the account being served. Resolving per call,
@@ -181,19 +225,48 @@ func NewManagedWebServer(s *store.Store, ctl *Controller, auth ...WebAuthConfig)
 }
 func (w *WebServer) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/static/theme.css", func(rw http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
-			return
+	// PWA shell assets. These are registered explicitly because the "/"
+	// catch-all below would otherwise answer all of them with index.html —
+	// and a manifest served as text/html makes a browser refuse to install
+	// the app without showing the operator any error at all.
+	serveAsset := func(name, ctype, cache string) http.HandlerFunc {
+		return func(rw http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			b, err := webAssets.ReadFile(name)
+			if err != nil {
+				http.NotFound(rw, r)
+				return
+			}
+			rw.Header().Set("X-Content-Type-Options", "nosniff")
+			rw.Header().Set("Content-Type", ctype)
+			rw.Header().Set("Cache-Control", cache)
+			_, _ = rw.Write(b)
 		}
-		b, err := webAssets.ReadFile("web/static/theme.css")
-		if err != nil {
-			http.NotFound(rw, r)
-			return
-		}
-		rw.Header().Set("Content-Type", "text/css; charset=utf-8")
-		_, _ = rw.Write(b)
-	})
+	}
+	// theme.css 承载全部移动端布局（@media(max-width:650px) 里的 .mobile-nav
+	// 固定定位、.shell 单列网格、.feed 底部安全内边距），是手机 WebView 里
+	// 唯一决定"页面长什么样"的样式表。它曾经在这里手写 handler 只设
+	// Content-Type，不设任何缓存头 —— WebView 于是走启发式缓存：App 升级后
+	// index.html 是新的而 theme.css 还是旧的，两者的类名/结构对不上，表现
+	// 就是"UI 莫名其妙错位"。与 app.css 一致用 no-cache。
+	mux.HandleFunc("/static/theme.css", serveAsset("web/static/theme.css", "text/css; charset=utf-8", "no-cache"))
+	// app.css 是 webui/src/app.css 的构建产物（Makefile 的 web 目标）。
+	// 必须在这里显式注册："/" 兜底会把未注册的 /static/* 答成 index.html，
+	// 而浏览器会把 text/html 的样式表静默丢弃 —— 页面看起来只是「样式没生效」，
+	// 排查成本极高。
+	// 用 no-cache 而不是 max-age：样式跟二进制一起发版，重启后就该是新版。
+	mux.HandleFunc("/static/app.css", serveAsset("web/static/app.css", "text/css; charset=utf-8", "no-cache"))
+	// A .webmanifest has no entry in Go's mime table on most hosts, so the type
+	// is stated here rather than inferred from the extension.
+	mux.HandleFunc("/manifest.webmanifest", serveAsset("web/manifest.webmanifest", "application/manifest+json", "no-cache"))
+	// sw.js is never cached long: an old worker keeps controlling the page
+	// until the update-check discovers a new one, which can take a day.
+	mux.HandleFunc("/sw.js", serveAsset("web/sw.js", "application/javascript; charset=utf-8", "no-cache"))
+	mux.HandleFunc("/static/icon-192.png", serveAsset("web/static/icon-192.png", "image/png", "public, max-age=86400"))
+	mux.HandleFunc("/static/icon-512.png", serveAsset("web/static/icon-512.png", "image/png", "public, max-age=86400"))
 	mux.HandleFunc("/healthz", w.healthz)
 	mux.HandleFunc("/readyz", w.readyz)
 	mux.HandleFunc("/", w.index)
@@ -239,6 +312,9 @@ func (w *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/api/login/qr/image", w.loginQRImage)
 	mux.HandleFunc("/api/login/qr/cancel", w.loginQRCancel)
 	mux.HandleFunc("/api/login/password", w.loginPassword)
+	mux.HandleFunc("/api/login/phone/start", w.loginPhoneStart)
+	mux.HandleFunc("/api/login/phone/code", w.loginPhoneCode)
+	mux.HandleFunc("/api/login/session", w.loginSessionImport)
 	mux.HandleFunc("/api/jobs", w.jobs)
 	mux.HandleFunc("/api/jobs/", w.jobRoute)
 	mux.HandleFunc("/api/downloads/summary", w.downloadSummary)
@@ -261,7 +337,11 @@ func (w *WebServer) Handler() http.Handler {
 	mux.HandleFunc("/api/autoclick/test", w.autoClickTest)
 	mux.HandleFunc("/api/autoclick/log", w.autoClickLog)
 	mux.HandleFunc("/api/autoclick/click", w.autoClickClick)
-	return w.requestMiddleware(w.csrfGuard(w.loginRoutes(w.authMiddleware(w.accountGuard(mux)))))
+	// The licence gate sits outside every other middleware: activation is what
+	// makes this install legitimate, and the login form protects the archive
+	// inside it. Requests that pass the gate continue down the existing chain
+	// unchanged, which is why an unlicensed deployment behaves exactly as before.
+	return w.requestMiddleware(w.licenceGate(w.csrfGuard(w.loginRoutes(w.authMiddleware(w.accountGuard(mux))))))
 }
 
 // accountGuard keeps a configured server usable after the operator removes
@@ -336,11 +416,39 @@ func (w *WebServer) authMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(rw, r)
 			return
 		}
+		// 静态资源放行：样式表、图标、manifest 不含任何归档内容，而登录页
+		// 自身要加载 /static/theme.css。一起锁死的话，未登录用户拿到的是一份
+		// 没有样式的裸 HTML（浏览器把 303 当样式表，静默丢弃）。
+		// 只开这一层：/api/ 与所有页面仍然要求凭证。
+		// /sw.js 必须一起放行：Service Worker 脚本对响应极敏感 —— 303 跟随到
+		// 登录页后拿到的是 text/html，"添加到主屏幕"仍然能装，但 SW 注册会被
+		// 浏览器以 "unsupported MIME type" 拒绝，离线壳永远不生效。它和静态
+		// 资源同级：纯脚本，不含任何归档内容。
+		if strings.HasPrefix(r.URL.Path, "/static/") ||
+			r.URL.Path == "/manifest.webmanifest" ||
+			r.URL.Path == "/sw.js" {
+			next.ServeHTTP(rw, r)
+			return
+		}
 		if w.Auth.Token != "" {
 			const prefix = "Bearer "
+			authorized := false
 			value := r.Header.Get("Authorization")
 			if len(value) >= len(prefix) && subtle.ConstantTimeCompare([]byte(value[:len(prefix)]), []byte(prefix)) == 1 &&
 				subtle.ConstantTimeCompare([]byte(value[len(prefix):]), []byte(w.Auth.Token)) == 1 {
+				authorized = true
+			}
+			// Android WebView 侧用 cookie 携带同一个 token：shouldInterceptRequest
+			// 拿不到 POST body，逐请求转发 Authorization 头会漏掉页面里的
+			// fetch()/XHR；CookieManager 设置一次即覆盖主文档、子资源与 API。
+			// cookie 与 Bearer 恒时比较同一 token，攻击面不变（都在回环上明文）。
+			if !authorized {
+				if c, err := r.Cookie("tdl_token"); err == nil &&
+					subtle.ConstantTimeCompare([]byte(c.Value), []byte(w.Auth.Token)) == 1 {
+					authorized = true
+				}
+			}
+			if authorized {
 				next.ServeHTTP(rw, r)
 				return
 			}
@@ -428,7 +536,7 @@ func (w *WebServer) deleted(rw http.ResponseWriter, r *http.Request) {
 		Query: r.URL.Query().Get("q"), Page: page, PageSize: pageSize,
 	})
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		w.serverError(rw, err)
 		return
 	}
 	writeJSON(rw, deletedAPIResponse{Items: v.Items, Total: v.Total, Page: v.Page, PageSize: v.PageSize})
@@ -444,7 +552,7 @@ func (w *WebServer) edited(rw http.ResponseWriter, r *http.Request) {
 		Query: r.URL.Query().Get("q"), Page: page, PageSize: pageSize,
 	})
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		w.serverError(rw, err)
 		return
 	}
 	items := make([]editedAPIItem, 0, len(v.Items))
@@ -636,6 +744,33 @@ func (w *WebServer) targets(rw http.ResponseWriter, r *http.Request) {
 		if !w.requireCtl(rw) {
 			return
 		}
+		// Deleting every source is opt-in and double-signed: ?all=1 alone is
+		// not enough, because a request that forgot chat_id would otherwise
+		// turn into "remove them all".
+		if q := r.URL.Query(); q.Get("all") == "1" || q.Get("all") == "true" {
+			if q.Get("confirm") != "1" {
+				http.Error(rw, "removing every source requires confirm=1", http.StatusBadRequest)
+				return
+			}
+			ts, err := w.store().Targets(r.Context())
+			if err != nil {
+				w.serverError(rw, err)
+				return
+			}
+			removed := 0
+			var failed []string
+			for _, t := range ts {
+				if err := w.ctl().RemoveMonitor(t.ChatID); err != nil {
+					failed = append(failed, t.Username)
+					continue
+				}
+				removed++
+			}
+			writeJSON(rw, map[string]any{
+				"status": "removed_all", "removed": removed, "total": len(ts), "failed": failed,
+			})
+			return
+		}
 		chatID, err := strconv.ParseInt(r.URL.Query().Get("chat_id"), 10, 64)
 		if err != nil || chatID == 0 {
 			http.Error(rw, "chat_id is required", http.StatusBadRequest)
@@ -743,10 +878,78 @@ func (w *WebServer) loginQRStatus(rw http.ResponseWriter, r *http.Request) {
 	st := w.ctl().State()
 	writeJSON(rw, map[string]any{
 		"qr":         w.ctl().QRState(),
+		"kind":       w.ctl().LoginKind(),
+		"phone":      w.ctl().LoginPhone(),
 		"authorized": st.Authorized,
 		"user":       st.User,
 		"error":      w.ctl().QRError(),
 	})
+}
+
+func (w *WebServer) loginPhoneStart(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !w.requireCtl(rw) {
+		return
+	}
+	var req struct {
+		Phone string `json:"phone"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := w.ctl().StartPhoneLogin(req.Phone); err != nil {
+		http.Error(rw, err.Error(), http.StatusConflict)
+		return
+	}
+	writeJSON(rw, map[string]string{"status": "code_sent"})
+}
+
+func (w *WebServer) loginPhoneCode(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !w.requireCtl(rw) {
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := w.ctl().SubmitLoginCode(req.Code); err != nil {
+		http.Error(rw, err.Error(), http.StatusConflict)
+		return
+	}
+	writeJSON(rw, map[string]string{"status": "submitted"})
+}
+
+func (w *WebServer) loginSessionImport(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !w.requireCtl(rw) {
+		return
+	}
+	var req struct {
+		Session string `json:"session"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := w.ctl().ImportSession(req.Session); err != nil {
+		http.Error(rw, err.Error(), http.StatusConflict)
+		return
+	}
+	writeJSON(rw, map[string]string{"status": "imported"})
 }
 
 func (w *WebServer) loginQRImage(rw http.ResponseWriter, r *http.Request) {
@@ -1027,10 +1230,23 @@ type storageAPIResponse struct {
 	LatestBackup string `json:"latest_backup,omitempty"`
 }
 
+// storageCacheTTL bounds how stale /api/storage may be. The underlying
+// numbers (object size, free space) change slowly; 30s keeps the page useful
+// while turning repeated UI polls into a single directory walk.
+const storageCacheTTL = 30 * time.Second
+
 func (w *WebServer) storage(rw http.ResponseWriter, r *http.Request) {
 	if !getOnly(rw, r) {
 		return
 	}
+	w.storageMu.Lock()
+	if w.storageOK && time.Since(w.storageAt) < storageCacheTTL {
+		cached := w.storageData
+		w.storageMu.Unlock()
+		writeJSON(rw, cached)
+		return
+	}
+	w.storageMu.Unlock()
 	// Derive every path from the store actually serving this request: the CLI
 	// happens to place it under consts.DataDir, but the storage numbers must
 	// describe THIS database, not whatever the default deployment layout is.
@@ -1045,6 +1261,9 @@ func (w *WebServer) storage(rw http.ResponseWriter, r *http.Request) {
 	if free, err := FreeDiskBytes(filepath.Join(root, "objects")); err == nil {
 		resp.FreeBytes = free
 	}
+	w.storageMu.Lock()
+	w.storageData, w.storageAt, w.storageOK = resp, time.Now(), true
+	w.storageMu.Unlock()
 	writeJSON(rw, resp)
 }
 
@@ -1223,7 +1442,7 @@ func (w *WebServer) destinations(rw http.ResponseWriter, r *http.Request) {
 	}
 	ds, err := w.store().Destinations(r.Context())
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		w.serverError(rw, err)
 		return
 	}
 	writeJSON(rw, ds)
@@ -1256,7 +1475,7 @@ func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 		// generated previews are always jpeg
 		rw.Header().Set("Content-Type", "image/jpeg")
 	} else {
-		p = filepath.Join(consts.DataDir, "archive", "objects", sha[:2], sha[2:4], sha)
+		p = filepath.Join(w.root(), "objects", sha[:2], sha[2:4], sha)
 		// Never let http.ServeFile sniff the type: a monitored .html payload
 		// served as text/html would execute in the archive origin (stored XSS).
 		// The allowlist matters too: an image/svg+xml document is a script, so
@@ -1276,7 +1495,7 @@ func (w *WebServer) media(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Cache-Control", "private, max-age=3600")
 	rw.Header().Set("Vary", "Authorization, Cookie")
 	rw.Header().Set("Content-Security-Policy", "sandbox")
-	root, _ := filepath.Abs(filepath.Join(consts.DataDir, "archive"))
+	root, _ := filepath.Abs(w.root())
 	abs, _ := filepath.Abs(p)
 	if !strings.HasPrefix(abs, root+string(os.PathSeparator)) {
 		http.NotFound(rw, r)
@@ -1315,7 +1534,7 @@ func (w *WebServer) avatar(rw http.ResponseWriter, r *http.Request) {
 		http.NotFound(rw, r)
 		return
 	}
-	root, _ := filepath.Abs(filepath.Join(consts.DataDir, "archive", "avatars"))
+	root, _ := filepath.Abs(filepath.Join(w.root(), "avatars"))
 	abs, _ := filepath.Abs(p)
 	if !strings.HasPrefix(abs, root+string(os.PathSeparator)) {
 		http.NotFound(rw, r)

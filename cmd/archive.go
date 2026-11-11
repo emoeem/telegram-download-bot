@@ -1338,7 +1338,8 @@ func newArchiveAutoClick() *cobra.Command {
 
 func newArchiveServe() *cobra.Command {
 	var addr, authToken, authBasic, authLogin, authFile string
-	var insecure bool
+	var licenseDir, deviceMaterial, licenseServer string
+	var noLicense, insecure bool
 	cmd := &cobra.Command{Use: "serve", Short: "Serve the local archive viewer", RunE: func(cmd *cobra.Command, _ []string) error {
 		configureArchiveLogging(cmd)
 		// Two modes share this command. With Telegram credentials the store is
@@ -1464,7 +1465,25 @@ func newArchiveServe() *cobra.Command {
 		viewer := archive.NewWebServer(s, auth)
 		viewer.Accounts = accounts
 		viewer.Ctl = ctl
-		srv := &http.Server{Addr: addr, Handler: viewer.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}
+		if gate, gerr := buildLicenceGate(licenseDir, deviceMaterial, noLicense); gerr != nil {
+			return gerr
+		} else if gate != nil {
+			viewer.Licence = gate
+		}
+		viewer.LicenceServer = licenseServer
+		srv := &http.Server{
+			Addr:              addr,
+			Handler:           viewer.Handler(),
+			ReadHeaderTimeout: 10 * time.Second,
+			// A slow or abandoned request body must not hold a connection
+			// forever; header-only and idle limits leave the actual read
+			// unbounded.
+			ReadTimeout: 30 * time.Second,
+			// Generous because /api/export and /media/ stream whole archives to
+			// a legitimate client. A shorter value truncates large downloads.
+			WriteTimeout: 30 * time.Minute,
+			IdleTimeout:  120 * time.Second,
+		}
 		go func() { <-cmd.Context().Done(); _ = srv.Close() }()
 		slog.Info("archive web listening", slog.String("addr", addr))
 		listenErr := srv.ListenAndServe()
@@ -1478,6 +1497,10 @@ func newArchiveServe() *cobra.Command {
 	cmd.Flags().StringVar(&authBasic, "auth-basic", "", "require HTTP Basic authentication, format user:pass")
 	cmd.Flags().StringVar(&authLogin, "auth-login", "", "require form login with a session cookie, format user:pass (min 8-char password)")
 	cmd.Flags().StringVar(&authFile, "auth-file", "", "credential file backing --auth-login; makes the password changeable from the web panel")
+	cmd.Flags().StringVar(&licenseDir, "license-dir", "", "授权的激活记录目录（默认 <数据目录>/license）")
+	cmd.Flags().StringVar(&deviceMaterial, "device-material", "", "覆盖本机设备标识（Android 由 App 传入；桌面一般不用填）")
+	cmd.Flags().StringVar(&licenseServer, "license-server", "", "在线授权服务地址；设置后激活会向它登记，启用一密钥一设备与远程撤销")
+	cmd.Flags().BoolVar(&noLicense, "no-license", false, "强制关闭授权校验（仅用于排障；发行版请勿使用）")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "allow unauthenticated binding to an unspecified address")
 	return cmd
 }

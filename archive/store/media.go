@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -101,6 +102,100 @@ func (s *Store) FilesMime(ctx context.Context, sha string) string {
 	var mime string
 	_ = s.db.QueryRowContext(ctx, `SELECT mime_type FROM files WHERE sha256=?`, sha).Scan(&mime)
 	return mime
+}
+
+// mediaClaimLease is how long a claimed job may stay 'running' without a
+// heartbeat before another worker is allowed to take it over. It only matters
+// after a crash (a live worker refreshes it while downloading); the value is
+// deliberately generous so a slow multi-gigabyte file cannot be stolen.
+const mediaClaimLease = 15 * time.Minute
+
+// ClaimPendingMedia selects up to limit due jobs and atomically marks them
+// 'running' before returning them.
+//
+// Without a claim, two worker passes — or two processes sharing a data
+// directory — can pick the same row and download it twice into the same
+// staging/<id>.tmp, corrupting each other's writes. Leases make that
+// impossible: a row leaves the pending set the moment it is claimed, and a
+// claim whose owner disappeared is returned to the queue after the lease.
+func (s *Store) ClaimPendingMedia(ctx context.Context, limit int) ([]MediaJob, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	started := time.Now()
+	now := started.Unix()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	// A write first: it takes the reserved lock immediately, so the SELECT
+	// below and the UPDATEs that follow cannot interleave with another
+	// claimer's transaction.
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE media SET status='pending',updated_at=? WHERE status='running' AND updated_at<=?`,
+		now, started.Add(-mediaClaimLease).Unix()); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT media.id,m.chat_id,m.message_id,media.type,COALESCE(media.status,''),media.attempts,COALESCE(media.size,0),COALESCE(media.file_id_unique,''),COALESCE(media.source_url,'') FROM media JOIN messages m ON m.id=media.message_rowid WHERE media.status IN ('pending','failed') AND (media.status!='failed' OR media.next_retry_at IS NOT NULL) AND (media.next_retry_at IS NULL OR media.next_retry_at<=?) ORDER BY media.id LIMIT ?`, now, limit)
+	if err != nil {
+		return nil, err
+	}
+	var out []MediaJob
+	for rows.Next() {
+		var j MediaJob
+		if err := rows.Scan(&j.ID, &j.ChatID, &j.MessageID, &j.Type, &j.Status, &j.Attempts, &j.Size, &j.FileUniqueID, &j.URL); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	for _, j := range out {
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE media SET status='running',updated_at=? WHERE id=? AND status<>'running'`,
+			now, j.ID); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	logSlowQuery("ClaimPendingMedia", time.Since(started), int64(len(out)))
+	return out, nil
+}
+
+// TouchMediaClaim refreshes the lease of a running job. It is a no-op for a
+// row that already finished, so callers do not need to track transitions.
+func (s *Store) TouchMediaClaim(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE media SET updated_at=? WHERE id=? AND status='running'`,
+		time.Now().Unix(), id)
+	return err
+}
+
+// ReleaseMediaClaims returns jobs still marked running by this worker back to
+// the pending queue. Called on a graceful exit so a shutdown does not leave
+// the queue asleep until the lease expires; terminal rows are untouched.
+func (s *Store) ReleaseMediaClaims(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, time.Now().Unix())
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE media SET status='pending',updated_at=? WHERE status='running' AND id IN (`+
+			strings.Join(placeholders, ",")+`)`, args...)
+	return err
 }
 
 func (s *Store) PendingMedia(ctx context.Context, limit int) ([]MediaJob, error) {

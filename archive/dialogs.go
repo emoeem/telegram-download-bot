@@ -3,6 +3,7 @@ package archive
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gotd/td/tg"
@@ -80,6 +81,15 @@ func ListDialogs(ctx context.Context, rt *Runtime, limit int) ([]Dialog, error) 
 		}
 		if len(dialogs) == 0 {
 			break
+		}
+		// 把这一页的实体写进 peers 缓存。界面点选后提交的是纯数字 ID，
+		// ResolveUserID 只有拿到 access_hash 才发得出请求；之前这里只遍历
+		// rawUser/rawChat 拼列表、不落缓存，从列表里选一个用户或机器人提交
+		// 时，服务端只能拿 InputUser{AccessHash:0} 去问 Telegram，得到
+		// "got empty result for InputUser{UserID:… AccessHash:0}"——
+		// 表现就是频道/群组能加、用户和机器人加不上。
+		if err := rt.Peers.Apply(ctx, rawUser, rawChat); err != nil {
+			slog.WarnContext(ctx, "archive dialogs: cache peers", "error", err)
 		}
 		progressed := false
 		for _, dcl := range dialogs {

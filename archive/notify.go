@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/iyear/tdl/archive/store"
@@ -18,6 +22,23 @@ import (
 // notifyDispatchTimeout bounds one outbound notification so a dead webhook
 // cannot stall the archiving loop.
 const notifyDispatchTimeout = 10 * time.Second
+
+// Delivery is retried a bounded number of times so a transient network blip or
+// a 5xx does not silently lose a notification. The whole asynchronous dispatch
+// lane gets notifyDeliveryBudget, enough for all attempts plus backoff.
+const (
+	notifyDeliveryAttempts = 3
+	notifyRetryBase        = time.Second
+	notifyDeliveryBudget   = 3*notifyDispatchTimeout + 30*time.Second
+)
+
+var (
+	// errNotifyRetryable marks a failure worth retrying (5xx / 429).
+	errNotifyRetryable = errors.New("notify: retryable delivery failure")
+	// errNotifyBlocked marks an SSRF-refused destination. Retrying it would
+	// only repeat the same refusal, so it is treated as permanent.
+	errNotifyBlocked = errors.New("notify: destination blocked")
+)
 
 // notifyRateMax / notifyRateWindow bound one rule to a fixed number of
 // notifications per window. A keyword that matches a high-traffic channel must
@@ -40,6 +61,19 @@ const (
 type Notifier struct {
 	Store *store.Store
 	HTTP  *http.Client
+	// WebhookHTTP is the client used for user-supplied webhook URLs. It is
+	// separate from HTTP because its dialer refuses loopback/private/metadata
+	// destinations (SSRF). HTTP stays on the default transport so Telegram
+	// delivery keeps honouring HTTPS_PROXY.
+	//
+	// nil falls back to HTTP, which is only correct for embedders that already
+	// enforce their own egress policy; NewNotifier always fills it in.
+	WebhookHTTP *http.Client
+
+	// RetryBackoff is the delay before the first retry, doubled on each
+	// subsequent attempt. Zero uses notifyRetryBase; a negative value disables
+	// retries (used by tests that exercise permanent failures).
+	RetryBackoff time.Duration
 
 	sem     chan struct{}
 	rate    rateWindow
@@ -50,9 +84,105 @@ type Notifier struct {
 
 func NewNotifier(s *store.Store) *Notifier {
 	return &Notifier{
-		Store: s,
-		HTTP:  &http.Client{Timeout: notifyDispatchTimeout},
-		sem:   make(chan struct{}, notifyMaxConcurrent),
+		Store:       s,
+		HTTP:        &http.Client{Timeout: notifyDispatchTimeout},
+		WebhookHTTP: newWebhookHTTPClient(),
+		sem:         make(chan struct{}, notifyMaxConcurrent),
+	}
+}
+
+// blockedWebhookPrefixes are the non-public ranges a webhook must never reach.
+// netip covers loopback/private/link-local/multicast via its helpers; these are
+// the extras that matter for SSRF: 0.0.0.0/8 (often routed to localhost on
+// Linux), CGNAT 100.64.0.0/10 (cloud metadata endpoints such as 100.100.100.200),
+// 192.0.0.0/24 (IETF protocol assignments) and 198.18.0.0/15 (benchmarking).
+var blockedWebhookPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("64:ff9b::/96"), // NAT64: can map any IPv4, including private
+}
+
+// blockedWebhookAddr reports whether ip is a destination a webhook must not
+// reach. IPv4-mapped IPv6 is unwrapped first so ::ffff:127.0.0.1 is rejected.
+func blockedWebhookAddr(ip netip.Addr) bool {
+	if !ip.IsValid() {
+		return true
+	}
+	ip = ip.Unmap()
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() || ip.IsInterfaceLocalMulticast() {
+		return true
+	}
+	for _, p := range blockedWebhookPrefixes {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// blockedWebhookHost is the syntactic half of the check: it rejects literal
+// private addresses and loopback names. Hostnames that merely *resolve* to a
+// private address are caught at dial time, which is the only point that sees
+// the real address.
+func blockedWebhookHost(host string) bool {
+	h := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	if h == "" || h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	if ip, err := netip.ParseAddr(strings.Trim(h, "[]")); err == nil {
+		return blockedWebhookAddr(ip)
+	}
+	return false
+}
+
+// newWebhookHTTPClient builds the egress-restricted client used for webhooks.
+// The control hook runs after resolution and before connect, so a hostname
+// pointing at a private address (including a rebound DNS answer) is refused
+// rather than connected to. Redirects are re-validated and capped.
+func newWebhookHTTPClient() *http.Client {
+	dialer := &net.Dialer{
+		Timeout: notifyDispatchTimeout,
+		Control: func(_, address string, _ syscall.RawConn) error {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil {
+				return err
+			}
+			ip, err := netip.ParseAddr(host)
+			if err != nil {
+				return err
+			}
+			if blockedWebhookAddr(ip) {
+				return fmt.Errorf("%w: webhook destination %s is in a blocked range", errNotifyBlocked, ip)
+			}
+			return nil
+		},
+	}
+	return &http.Client{
+		Timeout: notifyDispatchTimeout,
+		Transport: &http.Transport{
+			// Proxy: nil on purpose. An environment proxy would be the only
+			// peer the address check sees, and a proxy can reach anything, so
+			// honouring it here would silently disable the SSRF guard.
+			Proxy:                 nil,
+			DialContext:           dialer.DialContext,
+			TLSHandshakeTimeout:   notifyDispatchTimeout,
+			ResponseHeaderTimeout: notifyDispatchTimeout,
+			MaxIdleConns:          4,
+			IdleConnTimeout:       90 * time.Second,
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return fmt.Errorf("webhook: too many redirects")
+			}
+			if !ValidNotifyWebhook(req.URL.String()) {
+				return fmt.Errorf("webhook: redirect to %q is not an allowed destination", req.URL.Redacted())
+			}
+			return nil
+		},
 	}
 }
 
@@ -77,7 +207,7 @@ func (n *Notifier) DispatchAsync(m store.Message) {
 	case n.sem <- struct{}{}:
 		go func() {
 			defer func() { <-n.sem }()
-			ctx, cancel := context.WithTimeout(context.Background(), notifyDispatchTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), notifyDeliveryBudget)
 			defer cancel()
 			for _, r := range matched {
 				if !n.allow(r.ID) {
@@ -130,12 +260,18 @@ func (n *Notifier) deliver(ctx context.Context, r store.NotifyRule, m store.Mess
 	payload := n.buildPayload(ctx, r, m)
 	var errs []string
 	if r.WebhookURL != "" {
-		if err := n.sendWebhook(ctx, r, payload); err != nil {
+		err := n.withRetry(ctx, func(attemptCtx context.Context) error {
+			return n.sendWebhook(attemptCtx, r, payload)
+		})
+		if err != nil {
 			errs = append(errs, "webhook: "+err.Error())
 		}
 	}
 	if r.BotToken != "" && r.BotChatID != "" {
-		if err := n.sendTelegram(ctx, r, payload.preview()); err != nil {
+		err := n.withRetry(ctx, func(attemptCtx context.Context) error {
+			return n.sendTelegram(attemptCtx, r, payload.preview())
+		})
+		if err != nil {
 			errs = append(errs, "telegram: "+err.Error())
 		}
 	}
@@ -151,6 +287,64 @@ func (n *Notifier) deliver(ctx context.Context, r store.NotifyRule, m store.Mess
 		slog.Default().Warn("notify: record delivery", slog.String("error", err.Error()))
 	}
 	return d
+}
+
+// withRetry runs send up to notifyDeliveryAttempts times with doubling
+// backoff. Permanent failures (4xx, an SSRF refusal, a cancelled context) stop
+// immediately; only network errors and 5xx/429 are retried.
+func (n *Notifier) withRetry(ctx context.Context, send func(context.Context) error) error {
+	attempts := notifyDeliveryAttempts
+	base := n.RetryBackoff
+	if base < 0 {
+		attempts = 1
+	} else if base == 0 {
+		base = notifyRetryBase
+	}
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			timer := time.NewTimer(base << (attempt - 1))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
+		err = send(ctx)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil || !retryableNotifyError(err) {
+			return err
+		}
+		slog.Default().Warn("notify: retrying delivery",
+			slog.Int("attempt", attempt+1), slog.String("error", err.Error()))
+	}
+	return err
+}
+
+func retryableNotifyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errNotifyBlocked) {
+		return false
+	}
+	if errors.Is(err, errNotifyRetryable) {
+		return true
+	}
+	var ne net.Error
+	return errors.As(err, &ne)
+}
+
+// notifyStatusError classifies an HTTP status: 429 and 5xx are transient,
+// everything else (auth, bad payload, 404) would fail the same way again.
+func notifyStatusError(outlet string, code int) error {
+	if code == http.StatusTooManyRequests || code >= 500 {
+		return fmt.Errorf("%w: %s returned status %d", errNotifyRetryable, outlet, code)
+	}
+	return fmt.Errorf("%s returned status %d", outlet, code)
 }
 
 // outletNames lists the outlets a rule is configured to use.
@@ -203,7 +397,9 @@ func (n *Notifier) buildPayload(ctx context.Context, r store.NotifyRule, m store
 func (n *Notifier) sendWebhook(ctx context.Context, r store.NotifyRule, payload notifyPayload) error {
 	// Rules already stored before write-time validation existed may still carry
 	// a non-http(s) URL, so delivery refuses to build the request for them.
-	if !ValidNotifyWebhook(r.WebhookURL) {
+	// Private/loopback targets are refused by WebhookHTTP's dial guard rather
+	// than here, so a deployment-supplied client stays in control of egress.
+	if !notifyWebhookSchemeOK(r.WebhookURL) {
 		return fmt.Errorf("webhook url %q is not http(s)", r.WebhookURL)
 	}
 	body, err := json.Marshal(payload)
@@ -216,13 +412,19 @@ func (n *Notifier) sendWebhook(ctx context.Context, r store.NotifyRule, payload 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "tdl-archive-notify/1.0")
-	resp, err := n.HTTP.Do(req)
+	client := n.WebhookHTTP
+	if client == nil {
+		// Only reachable for embedders that constructed Notifier directly;
+		// NewNotifier always supplies the guarded client.
+		client = n.HTTP
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
+		return notifyStatusError("webhook", resp.StatusCode)
 	}
 	return nil
 }
@@ -244,7 +446,7 @@ func (n *Notifier) sendTelegram(ctx context.Context, r store.NotifyRule, text st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("bot api returned status %d", resp.StatusCode)
+		return notifyStatusError("bot api", resp.StatusCode)
 	}
 	return nil
 }

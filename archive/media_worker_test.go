@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -68,6 +70,37 @@ func TestMediaWorkerFailParksPermanentFailure(t *testing.T) {
 	}
 	if len(jobs) != 0 {
 		t.Fatalf("parked job still queued: %+v", jobs)
+	}
+}
+
+// A retryable failure must keep the staging file so the next attempt can reuse
+// a transfer that actually completed; only a terminal failure may delete it.
+func TestMediaWorkerKeepsStagingForRetry(t *testing.T) {
+	s, id := mediaJobStore(t)
+	root := t.TempDir()
+	w := &MediaWorker{Store: s, Root: root}
+	ctx := context.Background()
+
+	staging := filepath.Join(root, "staging")
+	if err := os.MkdirAll(staging, 0755); err != nil {
+		t.Fatal(err)
+	}
+	tmp := filepath.Join(staging, fmt.Sprintf("%d.tmp", id))
+	if err := os.WriteFile(tmp, []byte("partial"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_ = w.fail(ctx, store.MediaJob{ID: id, Attempts: 0}, context.DeadlineExceeded, false)
+	if _, err := os.Stat(tmp); err != nil {
+		t.Fatalf("retryable failure deleted the staging file: %v", err)
+	}
+
+	// Permanent failures leave no retry, so the bytes are unreachable.
+	if err := w.fail(ctx, store.MediaJob{ID: id, Attempts: 0}, errors.New("chat gone"), true); err != nil {
+		t.Fatalf("permanent failure should be swallowed: %v", err)
+	}
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("terminal failure kept the staging file: %v", err)
 	}
 }
 

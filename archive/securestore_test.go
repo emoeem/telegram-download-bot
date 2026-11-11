@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	cstorage "github.com/iyear/tdl/core/storage"
+	"github.com/iyear/tdl/core/storage/keygen"
 )
 
 type memKV struct {
@@ -39,6 +40,56 @@ func (m *memKV) Delete(_ context.Context, key string) error {
 	defer m.mu.Unlock()
 	delete(m.m, key)
 	return nil
+}
+
+func (m *memKV) Keys(_ context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	keys := make([]string, 0, len(m.m))
+	for k := range m.m {
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// Turning encryption on must seal every legacy plaintext value, not just the
+// two keys the first implementation hardcoded. Otherwise a leftover app hash
+// or peer secret stays readable while the UI claims the namespace is encrypted.
+func TestSecureStoreLegacyMigrationSealsEveryKey(t *testing.T) {
+	ctx := context.Background()
+	inner := newMemKV()
+	legacy := map[string]string{
+		keygen.New("app"):     "desktop",
+		keygen.New("session"): "legacy-session",
+		"peer:42":             "peer-secret-material",
+		"app-hash":            "api-hash",
+	}
+	for k, v := range legacy {
+		if err := inner.Set(ctx, k, []byte(v)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st, err := SecureNamespace(ctx, inner, "pass")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, want := range legacy {
+		raw, err := inner.Get(ctx, k)
+		if err != nil {
+			t.Fatalf("%s: %v", k, err)
+		}
+		if !isSealed(raw) {
+			t.Fatalf("%s stayed in plaintext after migration", k)
+		}
+		got, err := st.Get(ctx, k)
+		if err != nil || string(got) != want {
+			t.Fatalf("%s roundtrip: %q %v", k, got, err)
+		}
+	}
+	// The salt must remain readable so a reopen works.
+	if raw, err := inner.Get(ctx, encMetaKey); err != nil || isSealed(raw) {
+		t.Fatalf("salt must stay plaintext: %q %v", raw, err)
+	}
 }
 
 func TestSecureStoreRoundtripAndSeal(t *testing.T) {
