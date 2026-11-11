@@ -1,0 +1,196 @@
+/* archive/web 的 Tailwind 入口。
+ *
+ * 故意只取 theme + utilities 两层，不引 preflight：
+ * 项目已有完整的自定义基础样式（static/theme.css），而 preflight 会重置
+ * h1 字号、button 背景、img 的 display、ol/ul 缩进——引进来等于整站推倒重来。
+ * 分层导入让 utilities 落在 components 之后，同时跳过 base 重置。
+ *
+ * token 的单一真相仍然是 static/theme.css 的 :root。这里只做命名空间映射，
+ * 让 Tailwind 能生成 bg-surface / text-accent 这类 utility。值用 var() 引用，
+ * 改 theme.css 一处，Tailwind utility 与手写 CSS 同时生效，浅色主题自动跟随。
+ *
+ * 产物 archive/web/static/app.css 提交进仓库，因此 go build 与 docker build
+ * 都不需要 Node；只有改样式时才需要 `npm --prefix webui run build`。
+ */
+
+/* 不加 @layer 包裹，是刻意的。
+ *
+ * 现有 static/theme.css 全部是「未分层」规则。CSS 里 unlayered 规则一律
+ * 高于任何 @layer，所以一旦把 utilities 放进 layer(utilities)，它会永远
+ * 输给手写样式——p-3 改不动 .msg 的 padding，迁移就变成只能加不能改。
+ *
+ * 不分层 + app.css 在 theme.css 之后加载 ⇒ 两者同优先级、后者胜出，
+ * 这正是渐进迁移要的语义：先用 utility 覆盖个别规则，再逐步删手写样式。 */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+/* 只扫描真正会上线的模板，避免把 webui/ 自身的文件算进 class 提取。 */
+@source "../../archive/web/index.html";
+@source "../../archive/web/login.html";
+
+/* static：强制输出全部 token，不做「未使用即摇树」。
+   理由：--z-* / --shadow-* 不会被 utility 引用，只会被 @layer components 里的
+   手写规则用 var() 取；摇树掉它们等于这些 token 形同不存在。 */
+@theme static {
+  /* ── 颜色 ─────────────────────────────────────────────────────────────
+     Tailwind 命名空间 --color-* 自动产出 bg-* / text-* / border-* / ring-*。 */
+  --color-app: var(--bg-app);
+  --color-surface: var(--bg-surface);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-elevated: var(--bg-elevated);
+  --color-input: var(--bg-input);
+
+  --color-fg: var(--fg-primary);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-tertiary: var(--fg-tertiary);
+  --color-fg-inverse: var(--fg-inverse);
+
+  --color-line-subtle: var(--border-subtle);
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--state-success);
+  --color-warn: var(--state-warn);
+  --color-danger: var(--state-danger);
+  --color-info: var(--state-info);
+
+  /* ── 间距 ─────────────────────────────────────────────────────────────
+     现有 --sp-1..7 已是 4/8/12/16/24/32/48 标准档，直接继承。
+     注意：不要定义 --spacing，那会覆盖 Tailwind 的默认刻度。 */
+  --spacing-1: var(--sp-1);
+  --spacing-2: var(--sp-2);
+  --spacing-3: var(--sp-3);
+  --spacing-4: var(--sp-4);
+  --spacing-5: var(--sp-5);
+  --spacing-6: var(--sp-6);
+  --spacing-7: var(--sp-7);
+
+  /* ── 圆角 ─────────────────────────────────────────────────────────── */
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-card: var(--r-card);
+  --radius-lg: var(--r-lg);
+  --radius-full: var(--r-full);
+
+  /* ── 字号 ───────────────────────────────────────────────────────────
+     只映射、不重设行高：现有 .text 用 line-height:1.5，加默认行高会改变排版。 */
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+
+  /* ── 字体 ───────────────────────────────────────────────────────────
+     不能写 --font-sans: var(--font-sans)（自引用会失效），这里写同一份字面值。
+     与 theme.css 的 --font-sans 逐字相同，视觉无变化。 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* ── 动效 ─────────────────────────────────────────────────────────── */
+  --ease-out-app: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* ── 阴影（新增：现有 4 种裸写法无 token，见审查报告 3.4）─────────── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.28);
+
+  /* ── 层级（新增：现有 8 个裸 z-index，见审查报告 3.1）───────────────
+     Tailwind 没有 --z-* 命名空间，这里作为普通 CSS 变量留给 @layer components 用。 */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-drawer: 60;
+  --z-modal: 80;
+  --z-toast: 100;
+}
+
+/* 组件层留空（批不改层）：批次 4 才做 .btn / .card / .field 归并。
+   批次 1 的唯一目标是「管道跑通、视觉零变化」，不放任何会改像素的规则。 */
+@layer components {
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   批次 3 · 框架层：顶栏 / 分页 / 空态
+   ──────────────────────────────────────────────────────────────────────
+   这些规则不放进 @layer components，理由同文件头：theme.css 全是
+   unlayered 规则，被 layer 包住的规则一律输给它，分页和空态就改不动。
+   写在 tailwind 的 @import 之后、unlayered，才能同优先级覆盖。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 顶栏搜索组 ────────────────────────────────────────────────────────
+   输入框与搜索按钮绑成一个视觉单元：组内间距 8px，组间间距 8px 但
+   输入框独占 flex:1，所以从属关系靠"贴在一起 + 共同收缩"表达。 */
+.search-wrap{display:flex;flex:1;min-width:0;gap:var(--sp-2);align-items:center}
+.search-wrap .search{flex:1;min-width:0}
+.top .btn-search{flex:none;padding-inline:16px}
+
+/* ── 顶栏折叠菜单 ──────────────────────────────────────────────────────
+   用 <details> 而不是自制 div：自带 open 状态、键盘可达、无需焦点陷阱。
+   破坏性操作（清空归档）从首屏移进菜单，误触概率从"一眼可见"降到"两步"。 */
+.pop-menu{position:relative;flex:none}
+.pop-menu>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-primary);
+  padding:10px 13px;border-radius:var(--r-md);white-space:nowrap;user-select:none;
+  font:var(--fs-sm) var(--font-sans);
+  transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.pop-menu>summary::-webkit-details-marker{display:none}
+.pop-menu>summary:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}
+.pop-menu>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pop-menu[open]>summary{border-color:var(--accent);color:var(--accent)}
+.pop-list{position:absolute;right:0;top:calc(100% + 6px);min-width:168px;z-index:var(--z-sticky,10);
+  background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--r-md);
+  box-shadow:var(--shadow-lg);padding:var(--sp-1);display:grid;gap:2px}
+.pop-list button{width:100%;text-align:left;border:0;background:none;color:var(--fg-primary);
+  padding:9px 12px;border-radius:var(--r-sm);cursor:pointer;font:var(--fs-sm) var(--font-sans)}
+.pop-list button:hover,.pop-list button:focus-visible{background:var(--bg-surface-hover);outline:none}
+.pop-list button.danger{color:var(--state-danger)}
+.pop-list button.danger:hover,.pop-list button.danger:focus-visible{background:rgba(200,60,77,.12)}
+
+/* ── 统一分页 ──────────────────────────────────────────────────────────
+   原来 5 份手写副本措辞不一（"第 N 页"vs"第 N / M 页"）、间距不一，
+   还有一处是内联 style 完全没走类。合成一套。 */
+.pager{max-width:980px;margin:var(--sp-5) auto;display:flex;justify-content:center;
+  align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.pager .button{min-width:76px;padding:9px 14px;font-size:var(--fs-sm)}
+.pager .button:disabled{opacity:.4;cursor:default}
+.pager-count{color:var(--fg-secondary);font-size:var(--fs-sm);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ── 统一空态 ──────────────────────────────────────────────────────────
+   theme.css 用 ::before 塞了一个 ⌁；改成真实元素以支持三层结构，
+   所以先把旧伪元素关掉，否则会出现两个图标。 */
+.empty:before{content:none}
+.empty{min-height:240px;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:var(--sp-2);color:var(--fg-secondary);
+  padding:var(--sp-7) var(--sp-3);text-align:center}
+.empty-icon{font-size:30px;color:var(--fg-tertiary);line-height:1;margin-bottom:var(--sp-1)}
+.empty-main{margin:0;color:var(--fg-secondary);font-size:var(--fs-md)}
+.empty-sub{margin:0;color:var(--fg-tertiary);font-size:var(--fs-sm);max-width:32em;line-height:1.6}
+
+/* ── 650 以下：顶栏压到两行 ────────────────────────────────────────────
+   改前实测 390×844 下顶栏 201px / 8 行，占屏高 23.8%。目标 ≤2 行。
+   行 1 = 状态点 + 导出 + 账号 + 主题 + 更多（6 个固定宽度项）
+   行 2 = 搜索组独占（输入框需要完整宽度才有用）
+   📊 在窄屏隐藏：底部 .mobile-nav 的 ☰ 调用同一个 toggleRight()。 */
+@media(max-width:650px){
+  .top{height:auto;flex-wrap:wrap;padding:var(--sp-2);gap:var(--sp-1);row-gap:var(--sp-2);align-content:flex-start}
+  .search-wrap{order:10;flex-basis:100%;width:100%}
+  /* theme.css 在 650 断点里把 .top .search 设成 order:10 + flex-basis:100%，
+     那是搜索框还直接挂在 .top 下时的写法。现在它被 .search-wrap 包住，
+     这两条会把输入框推到「搜索」按钮之后并独占一行。复位。 */
+  .search-wrap .search{order:0;flex-basis:auto;width:auto;flex:1 1 0;min-width:0}
+  .top .chip{flex:0 1 auto;min-width:0;max-width:46vw;overflow:hidden;text-overflow:ellipsis;justify-content:center}
+  .top .only-narrow{display:none}
+  .pop-menu>summary{padding:9px 11px}
+  .pager{gap:var(--sp-2);margin:var(--sp-4) auto}
+  .pager .button{min-width:0;padding:9px 12px}
+  .empty{min-height:180px;padding:var(--sp-6) var(--sp-3)}
+}

@@ -229,6 +229,23 @@ func TestLogoutClearsSessionCookie(t *testing.T) {
 	}
 }
 
+func TestLogoutRejectsGET(t *testing.T) {
+	ts := loginTestServer(t, WebAuthConfig{LoginUser: "admin", LoginPassword: "hunter2hunter2"})
+	resp, err := noRedirect().Get(ts.URL + logoutPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("status=%d want 405", resp.StatusCode)
+	}
+	for _, c := range resp.Cookies() {
+		if c.Name == sessionCookie {
+			t.Fatal("a GET logout cleared the session cookie")
+		}
+	}
+}
+
 func TestLoginNextCannotRedirectOffsite(t *testing.T) {
 	cases := map[string]string{
 		"//evil.example":       "/",
@@ -295,5 +312,147 @@ func TestLoginBearerStillWorksAlongsideForm(t *testing.T) {
 	h.ServeHTTP(rw, req)
 	if rw.Code != http.StatusOK {
 		t.Fatalf("bearer auth status=%d", rw.Code)
+	}
+}
+
+// 登录页要加载 /static/theme.css 取共用 token。静态资源若被 auth 一起锁死，
+// 浏览器对 CSS 请求拿到的是 303，样式表被静默丢弃 —— 未登录用户看到的是一份
+// 没有任何样式的裸 HTML（实测就是这么坏的：card 圆角 0px、按钮透明）。
+func TestAuthAllowsStaticAssetsForLoginPage(t *testing.T) {
+	ts := loginTestServer(t, WebAuthConfig{LoginUser: "admin", LoginPassword: "hunter2hunter2"})
+	client := noRedirect()
+
+	for _, p := range []string{"/static/theme.css", "/static/app.css", "/manifest.webmanifest", "/sw.js"} {
+		resp, err := client.Get(ts.URL + p)
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		body := readAll(t, resp)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status=%d want 200：静态资源不放行，登录页就没有样式", p, resp.StatusCode)
+		}
+		if len(body) == 0 {
+			t.Fatalf("%s 返回空体", p)
+		}
+		// Service Worker 注册对 MIME 极敏感：303 跟随到登录页后是 text/html，
+		// 浏览器直接拒绝注册，PWA 的离线壳永远不生效。装得上、跑不起来。
+		if p == "/sw.js" {
+			if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/javascript") {
+				t.Fatalf("/sw.js Content-Type=%q：SW 必须由 JS MIME 提供，否则注册被拒", ct)
+			}
+		}
+	}
+
+	// 放行必须只限静态层：页面与接口仍然要求凭证。
+	for p, want := range map[string]int{
+		"/":          http.StatusSeeOther,
+		"/api/stats": http.StatusUnauthorized,
+	} {
+		resp, err := client.Get(ts.URL + p)
+		if err != nil {
+			t.Fatalf("%s: %v", p, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Fatalf("%s status=%d want %d：放行范围溢出到受保护资源", p, resp.StatusCode, want)
+		}
+	}
+}
+
+// 登录页 CSP 基线是 default-src 'none'。引同源样式表必须显式写 style-src 'self'，
+// 否则浏览器拦下 /static/theme.css —— 这一条只有真跑页面才看得出来。
+func TestLoginPageCSPAllowsSelfStylesheet(t *testing.T) {
+	ts := loginTestServer(t, WebAuthConfig{LoginUser: "admin", LoginPassword: "hunter2hunter2"})
+	resp, err := noRedirect().Get(ts.URL + loginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "style-src 'self'") {
+		t.Fatalf("CSP 未允许同源样式表，登录页拿不到 theme.css：%q", csp)
+	}
+	if !strings.Contains(csp, "default-src 'none'") {
+		t.Fatalf("CSP 基线被放宽了，登录页应保持 default-src 'none'：%q", csp)
+	}
+	if !strings.Contains(csp, "script-src 'unsafe-inline'") {
+		t.Fatalf("script-src 被意外改动：%q", csp)
+	}
+}
+
+// token 只能有一份真相：登录页引用 theme.css，不再自带 :root 色板。
+func TestLoginPageUsesSharedTokens(t *testing.T) {
+	raw, err := loginPageAsset.ReadFile("web/login.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(raw)
+	if !strings.Contains(page, `href="/static/theme.css"`) {
+		t.Fatal("登录页没有引用 /static/theme.css：会退回各自一套色板")
+	}
+	for _, tok := range []string{"--bg-app:", "--bg-surface:", "--fg-primary:", "--state-danger:"} {
+		if strings.Contains(page, tok) {
+			t.Fatalf("登录页仍在自定义 %s，token 出现第二套真相", tok)
+		}
+	}
+}
+
+// TestMediaSubresourceUnauthorizedIs401 pins the fix for a misleading failure:
+// a redirected <video> follows the 303, receives the login page as bytes and
+// reports "no supported video format". An expired session then looks like a
+// corrupt file instead of an expired session.
+func TestMediaSubresourceUnauthorizedIs401(t *testing.T) {
+	ts := loginTestServer(t, WebAuthConfig{LoginUser: "admin", LoginPassword: "hunter2hunter2"})
+	client := noRedirect()
+	sha := strings.Repeat("a", 64)
+
+	for _, path := range []string{
+		"/media/" + sha,
+		"/media/thumb/" + sha,
+		"/media/preview/" + sha,
+		"/avatar/user/123",
+		"/avatar/chat/456",
+	} {
+		resp, err := client.Get(ts.URL + path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		body := readAll(t, resp)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%s: status=%d want 401", path, resp.StatusCode)
+		}
+		if loc := resp.Header.Get("Location"); loc != "" {
+			t.Fatalf("%s: still redirects to %q", path, loc)
+		}
+		if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "text/html") {
+			t.Fatalf("%s: 401 served HTML body %q", path, ct)
+		}
+		if strings.Contains(body, "<form") || strings.Contains(body, "<html") {
+			t.Fatalf("%s: 401 body carried the login page", path)
+		}
+	}
+}
+
+// TestMediaPageRoutesStillRedirect guards the other half of that fix: the three
+// /media/* navigation routes must keep landing on the login form.
+func TestMediaPageRoutesStillRedirect(t *testing.T) {
+	ts := loginTestServer(t, WebAuthConfig{LoginUser: "admin", LoginPassword: "hunter2hunter2"})
+	client := noRedirect()
+
+	for _, path := range []string{"/media/images", "/media/videos", "/media/files"} {
+		resp, err := client.Get(ts.URL + path)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("%s: status=%d want 303", path, resp.StatusCode)
+		}
+		if loc := resp.Header.Get("Location"); !strings.HasPrefix(loc, loginPath+"?next=") {
+			t.Fatalf("%s: Location=%q", path, loc)
+		}
 	}
 }

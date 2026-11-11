@@ -47,8 +47,13 @@ func (w *WebServer) csrfGuard(next http.Handler) http.Handler {
 
 // sameOrigin reports whether a request came from this same host. A request with
 // no Origin and no Sec-Fetch-Site header is a non-browser client and is allowed.
+//
+// "null" is treated as absent: a document with an opaque origin (Android WebView
+// posting back to 127.0.0.1, sandboxed frames, some redirect chains) sends that
+// literal string, and parsing it would otherwise yield an empty host and reject
+// the very clients this guard exists to protect.
 func sameOrigin(r *http.Request) bool {
-	if origin := r.Header.Get("Origin"); origin != "" {
+	if origin := r.Header.Get("Origin"); origin != "" && origin != "null" {
 		u, err := url.Parse(origin)
 		if err != nil || u.Host == "" {
 			return false

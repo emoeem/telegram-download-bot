@@ -6,31 +6,30 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <title>登录 · Telegram Archive</title>
+<link rel="stylesheet" href="/static/theme.css">
 <style>
-:root{color-scheme:dark;--bg:#080a0f;--surface:#10141d;--input:#0d1118;--fg:#e9edf5;--muted:#8993a5;--tertiary:#687386;--border:#242b38;--border-strong:#3a4354;--accent:#2AABEE;--accent-hover:#229edb;--danger:#f0808f;--danger-bg:rgba(240,128,143,.1)}
-[data-theme="light"]{color-scheme:light;--bg:#f4f7fb;--surface:#fff;--input:#f8fafc;--fg:#17212b;--muted:#5f6b78;--tertiary:#7c8793;--border:#d8e0e8;--border-strong:#b9c6d3;--accent:#229ed9;--accent-hover:#168dcc;--danger:#c83c4d;--danger-bg:rgba(200,60,77,.08)}
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%}
-body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;align-items:center;justify-content:center;padding:24px;transition:background 200ms ease,color 200ms ease}
-.card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:32px 28px;box-shadow:0 18px 48px rgba(0,0,0,.24)}
-.brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;letter-spacing:.01em;margin-bottom:4px}
-.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 0 4px rgba(42,171,238,.14)}
-.sub{color:var(--muted);font-size:13px;margin:0 0 24px}
-label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px;letter-spacing:.02em}
-input[type=text],input[type=password]{width:100%;background:var(--input);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:11px 12px;font:inherit;outline:none;transition:border-color 120ms ease,box-shadow 120ms ease}
-input[type=text]:focus,input[type=password]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(42,171,238,.14)}
-input::placeholder{color:var(--tertiary)}
-.field{margin-bottom:16px}
-button{width:100%;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:6px;padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;transition:background 120ms ease,border-color 120ms ease}
+/* token 全部来自 /static/theme.css（与主界面同一份 :root）：
+   以前这里复制了一套 --bg/--surface/--fg，改主界面配色时登录页不会跟着变。 */
+body{display:flex;align-items:center;justify-content:center;padding:var(--sp-5)}
+.card{width:100%;max-width:380px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);padding:var(--sp-6) var(--sp-5);box-shadow:var(--shadow-lg)}
+.brand{display:flex;align-items:center;gap:8px;font-size:var(--fs-lg);font-weight:700;letter-spacing:.01em;margin-bottom:4px}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 0 4px var(--accent-soft)}
+.sub{color:var(--fg-secondary);font-size:var(--fs-sm);margin:0 0 var(--sp-5)}
+label{display:block;color:var(--fg-secondary);font-size:var(--fs-xs);margin-bottom:6px;letter-spacing:.02em}
+input[type=text],input[type=password]{width:100%;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:11px var(--sp-3);font:inherit;outline:none;transition:border-color var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
+input[type=text]:focus,input[type=password]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input::placeholder{color:var(--fg-tertiary)}
+.field{margin-bottom:var(--sp-4)}
+button{width:100%;border:1px solid var(--accent);background:var(--accent);color:var(--fg-inverse);border-radius:var(--r-md);padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
 button:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
 button:disabled{opacity:.6;cursor:default}
-.err{display:flex;gap:8px;align-items:flex-start;background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:10px 12px;font-size:13px;margin-bottom:18px;line-height:1.45}
+.err{display:flex;gap:8px;align-items:flex-start;background:var(--danger-soft);border:1px solid var(--state-danger);color:var(--state-danger);border-radius:var(--r-md);padding:10px var(--sp-3);font-size:var(--fs-sm);margin-bottom:18px;line-height:1.45}
 .err:before{content:"!";font-weight:700;flex:none;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px}
-.foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--border);color:var(--tertiary);font-size:11px;line-height:1.6;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
-.theme{background:none;border:1px solid var(--border);color:var(--muted);width:auto;padding:3px 8px;font-size:11px;font-weight:400;border-radius:4px}
-.theme:hover{background:var(--surface);border-color:var(--border-strong);color:var(--fg)}
-@media(max-width:420px){.card{padding:26px 20px}}
+.foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--border-default);color:var(--fg-tertiary);font-size:var(--fs-xs);line-height:1.6;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-xs)}
+.theme{background:none;border:1px solid var(--border-default);color:var(--fg-secondary);width:auto;padding:3px var(--sp-2);font-size:11px;font-weight:400;border-radius:var(--r-sm)}
+.theme:hover{background:var(--bg-surface);border-color:var(--border-strong);color:var(--fg-primary)}
+@media(max-width:420px){.card{padding:var(--sp-5) var(--sp-4)}}
 </style>
 </head>
 <body>
@@ -55,7 +54,10 @@ button:disabled{opacity:.6;cursor:default}
 </form>
 <script>
 (function(){
-  var KEY="tdl-archive-theme";
+  // 必须和 index.html 的 applyTheme/initTheme 用同一个键。这里原来写的是
+  // "tdl-archive-theme"，两边各存各的：在登录页点的"切换主题"进主界面就丢，
+  // 主界面选的主题回到登录页也不生效。
+  var KEY="theme";
   function apply(t){ if(t==="light"){document.documentElement.setAttribute("data-theme","light");}else{document.documentElement.removeAttribute("data-theme");} }
   try{ apply(localStorage.getItem(KEY)); }catch(e){}
   document.getElementById("theme").addEventListener("click",function(){

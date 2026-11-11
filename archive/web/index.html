@@ -1,11 +1,435 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Telegram Archive</title><link rel="stylesheet" href="/static/theme.css"></head><body><div class="shell"><aside class="side"><div class="brand">Telegram Archive</div><div class="nav"><button data-view="messages">▤ 消息</button><button data-view="images">▧ 图片</button><button data-view="videos">▶ 视频</button><button data-view="files">□ 文件</button><button data-view="links">↗ 链接</button><button data-view="deleted">⚠ 已删除</button><button data-view="edits">✎ 编辑记录</button><button data-view="dest">⚙ 发布目标</button><button data-view="materials">▦ 材料</button><button data-view="inbox"># 编号</button><button data-view="storage">▣ 存储</button></div><div class="source-group" onclick="toggleSources()">监控源</div><div id="sourceList" class="source-list"><div id="sources"></div></div></aside><main class="main"><header class="top"><span class="top-title">Telegram Archive</span><span class="status-dot" title="归档服务运行中"></span><input id="q" class="search" placeholder="搜索关键词 / from:@user / in:@channel / has:image / before:2026-10-01"><button class="button" onclick="doSearch()">搜索</button><button class="button" onclick="doExport('csv')" title="导出当前视图为 CSV">⤓ CSV</button><button class="button" onclick="doExport('json')" title="导出当前视图为 JSON">⤓ JSON</button><button class="button only-narrow" onclick="toggleRight()" title="显示/隐藏统计面板">📊</button><span id="acct" class="chip" onclick="acctClick()" title="账号状态">…</span><button class="button theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">☾</button><button class="button" onclick="openHelp()">❓ 说明</button></header><div id="deletedBanner" class="banner">⚠ 已从 Telegram 删除，本地档案保留</div><div id="viewHead" class="view-head"><div><div class="breadcrumbs">Archive <span>›</span> <b>消息</b></div><h1>消息</h1><p>实时归档 · 本地保留 Telegram 内容</p></div><span class="view-count">/messages</span></div><div id="topicBar" class="topic-bar" hidden></div><section id="feed" class="feed"></section><footer class="footer"><span><span class="status-dot"></span> 监听服务</span><span id="footerHost">·</span><span>Telegram Archive</span></footer></main><aside class="right"><div class="right-tabs"><button id="rightTabDownload" class="right-tab active" onclick="setRightPanel('download')">下载</button><button id="rightTabStats" class="right-tab" onclick="setRightPanel('stats')">统计</button><button id="rightTabDest" class="right-tab" onclick="setRightPanel('dest')">发布</button><button id="rightTabNotify" class="right-tab" onclick="setRightPanel('notify')">通知</button><button id="rightTabClick" class="right-tab" onclick="setRightPanel('click')">点击</button><button id="rightTabAccount" class="right-tab" onclick="setRightPanel('account')">账号</button></div><section id="downloadPanel" class="download-panel"><div class="right-heading"><b>媒体下载</b><span>自动刷新 5s</span></div><div class="download-summary"><div><b id="dlRunning">0</b><span>进行中</span></div><div><b id="dlQueued">0</b><span>排队</span></div><div><b id="dlCompleted">0</b><span>完成</span></div><div><b id="dlFailed">0</b><span>失败</span></div></div><div class="download-actions"><button class="button" onclick="toggleDownloadPause()" id="dlPauseBtn">暂停下载</button><button class="button" onclick="retryFailedDownloads()">重试失败</button></div><div id="downloadActive" class="download-active"></div><div class="right-heading"><b>归档任务</b><span>回填 / 补洞</span></div><div id="jobs"><div class="download-empty">暂无归档任务</div></div></section><section id="statsPanel" hidden><div class="right-heading"><b>归档统计</b><span>实时</span></div><div id="stats" class="stats"></div></section><section id="destPanel" hidden><div class="right-heading"><b>发布目标</b><span>配置</span></div><div id="destinations"></div></section><section id="notifyPanel" hidden><div class="right-heading"><b>通知规则</b><span>关键词 → Webhook / Bot</span></div><div id="notifyRules" class="download-active"></div><details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted)">➕ 添加规则</summary><div style="margin-top:8px;display:grid;gap:8px"><input type="text" id="nName" placeholder="规则名称，如: 服务器告警" style="width:100%"><input type="text" id="nKeywords" placeholder="关键词（逗号分隔，空=全部消息）" style="width:100%"><input type="text" id="nExclude" placeholder="排除词（逗号分隔）" style="width:100%"><input type="text" id="nChats" placeholder="限定聊天 ID（逗号分隔，空=全部）" style="width:100%"><input type="text" id="nWebhook" placeholder="Webhook URL（可选，http/https）" style="width:100%"><input type="text" id="nBotChat" placeholder="Bot 发送的 chat_id（可选）" style="width:100%"><input type="password" id="nBotToken" placeholder="Bot Token（可选，仅写入不回显）" style="width:100%"><button class="button" style="width:100%" onclick="submitNotifyRule()">保存规则</button></div></details><div class="right-heading" style="margin-top:12px"><b>最近投递</b><span>最新 30 条</span></div><div id="notifyLog" class="download-active"></div></section><section id="clickPanel" hidden><div class="right-heading"><b>自动点击</b><span>按钮 / t.me 链接</span></div><div class="download-item" style="margin-bottom:10px"><div class="download-name">结果推送 Bot</div><div id="acStatus" class="download-meta">加载中…</div><div style="margin-top:8px;display:grid;gap:8px"><input type="text" id="acChat" placeholder="Bot 发送的 chat_id（频道 -100… / 私聊正数）" style="width:100%"><input type="password" id="acToken" placeholder="Bot Token（可选，仅写入不回显）" style="width:100%"><button class="button" style="width:100%" onclick="saveAutoClick()">保存出口配置</button><button class="button" style="width:100%" onclick="testAutoClick()">发送测试</button><button class="button" style="width:100%" onclick="scanHistoryButtons()" title="把已归档历史消息里的按钮批量放进点击队列">扫描历史按钮</button></div></div><div class="right-heading" style="margin-top:12px"><b>最近点击</b><span>最新 50 条</span></div><div id="acLog" class="download-active"></div></section><section id="accountPanel" hidden><div class="right-heading"><b>面板账号</b><span>网页登录凭据</span></div><div class="download-item"><div class="download-name">当前账号</div><div id="accName" class="download-meta">加载中…</div></div><div style="display:grid;gap:8px;margin-top:10px"><input type="password" id="accCur" placeholder="当前密码（必填）" autocomplete="current-password" style="width:100%"><input type="text" id="accUser" placeholder="新账号（留空则不修改）" autocomplete="username" style="width:100%"><input type="password" id="accNew" placeholder="新密码（留空则不修改，至少 8 位）" autocomplete="new-password" style="width:100%"><input type="password" id="accConfirm" placeholder="确认新密码" autocomplete="new-password" style="width:100%"><button class="button btn-save-account" style="width:100%" onclick="saveAccount()">保存</button></div><div id="accMsg" class="download-meta" style="margin-top:8px;min-height:16px"></div><div class="right-heading" style="margin-top:12px"><b>说明</b><span>安全</span></div><div class="download-meta" style="line-height:1.7">改密码后，其它设备上的登录会立即失效，当前这一页自动续期。<br>这里管的是<b>网页登录</b>；Telegram 账号在顶栏账号芯片里管理。<br>密码以 PBKDF2 哈希存盘，服务端不保留明文。</div></section></aside></div><nav class="mobile-nav"><button onclick="mobileNav('messages')">▤<span>消息</span></button><button onclick="mobileNav('images')">▧<span>媒体</span></button><button onclick="toggleRight()">☰<span>更多</span></button></nav><div id="loginModal" class="modal" onclick="if(event.target===this)closeLogin()"><div class="modal-box"><h3>🔐 登录 Telegram 账号</h3><div id="loginBody"><div class="qr-hint">用手机 Telegram：<b>设置 → 设备 → 链接桌面设备</b>，扫描下方二维码</div><div class="qr-wrap"><img id="qrImg" src="" alt="QR"><div id="qrStatus" class="qr-status">正在生成二维码…</div></div><div class="row" id="pwdRow" hidden><label>两步验证密码（2FA）</label><input type="password" id="pwdInput" placeholder="云密码" onkeydown="if(event.key==='Enter')submitPwd()"><div class="modal-actions"><button class="button" onclick="submitPwd()">提交</button></div></div><div class="modal-actions"><button class="button" onclick="cancelQR()">取消</button></div></div></div></div>
-<div id="accountsModal" class="modal" onclick="if(event.target===this)closeAccounts()"><div class="modal-box acc-box"><h3>👤 Telegram 账号</h3><div id="accList" class="acc-list"></div><div class="acc-add"><input type="text" id="accName" placeholder="新账号名称（留空自动命名）" onkeydown="if(event.key==='Enter')addAccount()"><button class="button" onclick="addAccount()">+ 添加账号</button></div><div class="modal-actions"><button class="button" onclick="closeAccounts()">关闭</button></div></div></div><div id="addModal" class="modal" onclick="if(event.target===this)closeAdd()"><div class="modal-box"><h3>➕ 添加监控源</h3><div class="row"><label>频道 / 群组 / 用户（@username、t.me 链接或数字 ID，支持私有邀请链接 t.me/+…）</label><input type="text" id="addTarget" placeholder="@durov 或 https://t.me/+AbCdEf…"><button type="button" class="button" style="width:100%;margin-top:8px" onclick="toggleDialogs(this)">📋 从我的聊天列表选择（你加入的频道 / 群组 / 私聊）</button><input type="text" id="dlgFilter" hidden placeholder="🔍 输入名称或 @用户名 过滤" oninput="renderDlgList()" style="width:100%;margin-top:8px"><div id="dlgList" hidden style="max-height:240px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:9px;background:var(--panel2)"></div></div><div class="row"><label>历史回填条数上限</label><input type="number" id="addLimit" value="1000" min="1"></div><div class="row"><label>起点（可选，YYYY-MM-DD 或 RFC3339，留空表示不限）</label><input type="text" id="addSince" placeholder="2026-01-01"></div><div class="row"><label>关键词白名单（可选，逗号分隔，命中任一才归档）</label><input type="text" id="addKeywords" placeholder="空=不过滤，如: 福利,资源,更新"></div><div class="row"><label>排除词（可选，逗号分隔，命中即跳过）</label><input type="text" id="addExclude" placeholder="空=不过滤，如: 广告,推广"></div><div class="row"><label>单文件大小上限（可选 MB，超过则跳过下载）</label><input type="number" id="addMaxSize" min="0" placeholder="0=不限"></div><div class="row checkbox-row"><input type="checkbox" id="addDownload" checked><label style="margin:0" for="addDownload">同时下载媒体文件到本地</label></div><div class="row checkbox-row"><input type="checkbox" id="addAutoClick"><label style="margin:0" for="addAutoClick">自动点击消息里的按钮 / t.me 链接</label></div><div class="row"><label>自动点击关键词（可选，逗号分隔，匹配按钮文字或链接；空=全部点击）</label><input type="text" id="addAutoClickKeywords" placeholder="空=全部，如: 领取,福利"></div><div id="addErr" class="qr-status err"></div><div class="modal-actions"><button class="button" onclick="closeAdd()">取消</button><button class="button" onclick="submitAdd()">添加并回填</button></div></div></div>
-<div id="helpModal" class="modal" onclick="if(event.target===this)closeHelp()"><div class="modal-box help"><h3>❓ 使用说明</h3><h4>快速开始</h4><ol><li>点击顶栏账号芯片，用手机 Telegram <b>设置 → 设备 → 链接桌面设备</b> 扫码登录（如开启了两步验证，需再输入云密码）。</li><li>左侧 <b>Monitored sources → 添加源</b>，填入 @username 或 t.me 链接，保存后自动回填历史消息。</li><li>归档由 serve 进程实时进行（含每 10 分钟巡检补漏与媒体下载）；也可另开终端运行 <code>tdl archive run</code> 获得更强的长驻监控。</li><li>顶部搜索框支持 <code>from:@user</code> / <code>in:@channel</code> / <code>has:image</code> / <code>before:2026-10-01</code> 等语法。</li></ol><h4>CLI 命令参考</h4><ul><li><code>tdl archive login [--qr]</code> — 终端登录（验证码或扫码）</li><li><code>tdl archive monitor add @channel --limit 1000 --since 2026-01-01</code></li><li><code>tdl archive run</code> — 长驻实时监听 + 巡检 + 媒体下载</li><li><code>tdl archive sync @channel</code> — 手动补洞</li><li><code>tdl archive search "关键词"</code> / <code>stats</code> / <code>doctor</code></li><li><code>tdl archive media pending|retry</code> — 媒体任务排查</li><li><code>tdl archive notify add/list/test/log</code> — 关键词通知规则（Webhook / Bot API）</li></ul><h4>通知规则</h4><ul><li>右侧「通知」面板或 CLI 可创建规则：匹配关键词的<b>实时新消息</b>会推送到 Webhook（JSON POST）或 Telegram Bot API。</li><li>历史回填不触发通知；每条规则限速 20 条/分钟；Bot Token 只写入不回显。</li></ul><h4>自动点击</h4><ul><li>在监控源（添加/编辑）里开启<b>自动点击</b>后，频道新消息里的内联按钮与 t.me 链接会由你的账号自动处理：callback 按钮直接点击、<code>t.me/xxx?start=…</code> 自动发送 /start、消息链接自动拉取归档。</li><li>点击结果（按钮提示、bot 回复、拉取到的内容）通过右侧「点击」面板配置的 <b>Bot Token + chat_id</b> 推送给你；按钮回复会自动捕获（约 25 秒窗口）。</li><li>每个监控源可设关键词过滤按钮（匹配按钮文字/链接，空=全部）；每源限速 20 次/分钟；外部网页链接不会自动打开，只推送链接给你。</li></ul><h4>注意事项</h4><ul><li>消息卡片右下角「删除」= 只在本机归档隐藏（可在「已删除」恢复）；详情页「彻底删除」会连媒体文件一起移除，不可恢复。</li><li>「点击」面板的 <b>扫描历史按钮</b> 会把已归档消息里的按钮批量放进点击队列；实时新消息开着自动点击就不用手点。</li><li>同一媒体组（相册）会合并成一张卡片显示，文字取自组内带文字的那一条。</li><li>归档使用你的 <b>用户账号</b>（MTProto），只能归档你有权限查看的内容。</li><li>数据位于 <code>~/.tdl/archive/</code>（SQLite + 内容寻址媒体对象）。</li><li>serve 默认监听 <code>127.0.0.1</code>；对外暴露请务必加 <code>--auth-basic user:pass</code>。</li><li>消息删除为软删除、编辑保留全部版本，可在 Deleted / Edits 视图查看。</li></ul><div class="modal-actions"><button class="button" onclick="closeHelp()">知道了</button></div></div></div>
-<div id="editModal" class="modal" onclick="if(event.target===this)closeEdit()"><div class="modal-box"><h3>⚙ 编辑监控规则</h3><div class="muted" id="editWho" style="margin-bottom:10px"></div><div class="row"><label>关键词白名单（逗号分隔，命中任一才归档）</label><input type="text" id="editKeywords" placeholder="如: 福利,资源"></div><div class="row"><label>排除词（逗号分隔，命中即跳过）</label><input type="text" id="editExclude" placeholder="如: 广告,推广"></div><div class="row"><label>单文件大小上限（MB，0 = 不限）</label><input type="number" id="editMaxSize" min="0" value="0"></div><div class="row checkbox-row"><input type="checkbox" id="editDownload"><label style="margin:0" for="editDownload">下载媒体文件到本地</label></div><div class="row checkbox-row"><input type="checkbox" id="editEnabled"><label style="margin:0" for="editEnabled">启用监控（取消勾选 = 暂停，不删数据）</label></div><div class="row checkbox-row"><input type="checkbox" id="editAutoClick"><label style="margin:0" for="editAutoClick">自动点击消息里的按钮 / t.me 链接</label></div><div class="row"><label>自动点击关键词（可选，逗号分隔；空=全部点击）</label><input type="text" id="editAutoClickKeywords" placeholder="空=全部，如: 领取,福利"></div><div id="editErr" class="qr-status err" hidden></div><div class="modal-actions"><button class="button" onclick="closeEdit()">取消</button><button class="button primary" onclick="saveEdit()">保存</button></div></div></div>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Telegram Archive</title><meta name="theme-color" content="#080a0f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Archive"><meta name="format-detection" content="telephone=no"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/static/icon-192.png"><link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png"><link rel="stylesheet" href="/static/theme.css"><link rel="stylesheet" href="/static/app.css"></head><body><div class="shell"><aside class="side" aria-label="主导航"><h1 class="brand">Telegram Archive</h1><nav class="nav" aria-label="视图"><button data-view="messages" aria-current="page">▤ 消息</button><button data-view="images">▧ 图片</button><button data-view="videos">▶ 视频</button><button data-view="files">□ 文件</button><button data-view="links">↗ 链接</button><button data-view="deleted">⚠ 已删除</button><button data-view="edits">✎ 编辑记录</button><button data-view="dest">⚙ 发布目标</button><button data-view="materials">▦ 材料</button><button data-view="inbox"># 编号</button><button data-view="storage">▣ 存储</button></nav><div class="source-group" onclick="toggleSources()">监控源</div><div id="sourceList" class="source-list"><div id="sources"></div></div></aside><main class="main"><header class="top"><span class="top-title">Telegram Archive</span><span class="status-dot" title="归档服务运行中" aria-hidden="true"></span><span class="m-title" id="mTitle">消息</span><button id="mSearchBtn" class="button m-search-btn" onclick="openMobileSearch()" aria-label="搜索" title="搜索">⌕</button><div class="search-wrap"><input id="q" class="search" enterkeyhint="search" onkeydown="if(event.key==='Enter')doSearch()" placeholder="搜索 / from:@user / in:@channel / has:image / before:日期" title="支持 from: in: has: before: 前缀，完整语法见「使用说明」" aria-label="搜索归档内容"><button class="button btn-search" onclick="doSearch()">搜索</button><button class="button m-search-cancel" onclick="closeMobileSearch()">取消</button></div><details class="pop-menu" id="exportMenu"><summary class="button" title="导出当前视图" aria-label="导出">⤓ 导出</summary><div class="pop-list" role="menu"><button role="menuitem" onclick="doExport('csv')">CSV 表格</button><button role="menuitem" onclick="doExport('json')">JSON 数据</button></div></details><span id="acct" class="chip" onclick="acctClick()" title="账号状态">…</span><button class="button theme-toggle" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">☾</button><button class="button only-narrow" onclick="toggleRight()" title="显示/隐藏侧栏">📊</button><details class="pop-menu" id="moreMenu"><summary class="button" title="更多操作" aria-label="更多操作">⋯</summary><div class="pop-list" role="menu"><button role="menuitem" onclick="openHelp()">❓ 使用说明</button><button role="menuitem" class="danger" onclick="purgeAll()">🗑 清空归档</button></div></details></header><div id="deletedBanner" class="banner">⚠ 已从 Telegram 删除，本地档案保留</div><div id="viewHead" class="view-head"><div><div class="breadcrumbs">Archive <span>›</span> <b>消息</b></div><h1>消息</h1><p>实时归档 · 本地保留 Telegram 内容</p></div><span class="view-count">/messages</span></div><div id="topicBar" class="topic-bar" hidden></div><section id="feed" class="feed"></section>
+<section id="moreView" class="page-view" aria-label="全部功能"><section class="m-group"><h2>内容</h2><div class="m-grid"><button class="m-cell" onclick="mobileNav('videos')"><span class="m-ico">▶</span>视频</button><button class="m-cell" onclick="mobileNav('files')"><span class="m-ico">□</span>文件</button><button class="m-cell" onclick="mobileNav('materials')"><span class="m-ico">▦</span>材料</button><button class="m-cell" onclick="mobileNav('deleted')"><span class="m-ico">⚠</span>已删除</button><button class="m-cell" onclick="mobileNav('edits')"><span class="m-ico">✎</span>编辑记录</button><button class="m-cell" onclick="mobileNav('storage')"><span class="m-ico">▣</span>存储</button></div></section><section class="m-group"><h2>监控源</h2><div class="m-sources" id="mSources"></div></section><section class="m-group"><h2>管理</h2><div class="m-list"><button class="m-row" onclick="openRight('download')">下载任务<span class="m-row-sub">进行中 / 失败重试</span></button><button class="m-row" onclick="openRight('stats')">归档统计<span class="m-row-sub">实时</span></button><button class="m-row" onclick="openRight('dest')">发布目标<span class="m-row-sub">配置</span></button><button class="m-row" onclick="openRight('notify')">通知规则<span class="m-row-sub">关键词 → Webhook</span></button><button class="m-row" onclick="openRight('click')">自动点击<span class="m-row-sub">按钮 / t.me 链接</span></button></div></section><section class="m-group"><h2>账号</h2><div class="m-list"><button class="m-row" onclick="openAccounts()">Telegram 账号<span class="m-row-sub" id="mAcctState">管理</span></button><button class="m-row" onclick="openRight('account')">面板账号<span class="m-row-sub">网页登录凭据</span></button></div></section><section class="m-group"><h2>其他</h2><div class="m-list"><button class="m-row" onclick="doExport('csv')">导出 CSV</button><button class="m-row" onclick="doExport('json')">导出 JSON</button><button class="m-row" onclick="toggleTheme()">切换主题</button><button class="m-row" onclick="openHelp()">使用说明</button><button class="m-row" onclick="openSetup()">更换 Telegram 凭据</button><button class="m-row danger" onclick="purgeAll()">清空归档</button></div></section></section>
+<section id="addView" class="page-view" aria-label="添加监控源"><div class="modal-box"><h3><button class="button page-close" onclick="closeAdd()" aria-label="返回">←</button>➕ 添加监控源</h3><div class="row"><label>频道 / 群组 / 用户（@username、t.me 链接或数字 ID，支持私有邀请链接 t.me/+…）</label><input type="text" id="addTarget" placeholder="@durov 或 https://t.me/+AbCdEf…"><button type="button" class="button block mt-2" onclick="toggleDialogs(this)">📋 从我的聊天列表选择（你加入的频道 / 群组 / 私聊）</button><input type="text" id="dlgFilter" hidden placeholder="🔍 输入名称或 @用户名 过滤" oninput="renderDlgList()" class="w-full mt-2"><div id="dlgList" class="scroll-box mt-2" hidden></div></div><div class="row"><label>历史回填条数上限</label><input type="number" id="addLimit" value="1000" min="1"></div><div class="row"><label>起点（可选，YYYY-MM-DD 或 RFC3339，留空表示不限）</label><input type="text" id="addSince" placeholder="2026-01-01"></div><div class="row"><label>关键词白名单（可选，逗号分隔，命中任一才归档）</label><input type="text" id="addKeywords" placeholder="空=不过滤，如: 福利,资源,更新"></div><div class="row"><label>排除词（可选，逗号分隔，命中即跳过）</label><input type="text" id="addExclude" placeholder="空=不过滤，如: 广告,推广"></div><div class="row"><label>单文件大小上限（可选 MB，超过则跳过下载）</label><input type="number" id="addMaxSize" min="0" placeholder="0=不限"></div><div class="row checkbox-row"><input type="checkbox" id="addDownload" checked><label class="zero" for="addDownload">同时下载媒体文件到本地</label></div><div class="row checkbox-row"><input type="checkbox" id="addAutoClick"><label class="zero" for="addAutoClick">自动点击消息里的按钮 / t.me 链接</label></div><div class="row"><label>自动点击关键词（可选，逗号分隔，匹配按钮文字或链接；空=全部点击）</label><input type="text" id="addAutoClickKeywords" placeholder="空=全部，如: 领取,福利"></div><div id="addErr" class="qr-status err"></div><div class="modal-actions"><button class="button" onclick="closeAdd()">取消</button><button class="button" onclick="submitAdd()">添加并回填</button></div></div></section>
+<section id="accountsView" class="page-view" aria-label="Telegram 账号"><div class="modal-box acc-box"><h3><button class="button page-close" onclick="closeAccounts()" aria-label="返回">←</button>👤 Telegram 账号</h3><div id="accList" class="acc-list"></div><div class="acc-add"><input type="text" id="accName" placeholder="新账号名称（留空自动命名）" onkeydown="if(event.key==='Enter')addAccount()"><button class="button" onclick="addAccount()">+ 添加账号</button></div></div></section>
+<footer class="footer"><span><span class="status-dot" aria-hidden="true"></span> 监听服务</span><span id="footerHost">·</span><span>Telegram Archive</span></footer></main><aside class="right" aria-label="侧栏"><div class="sheet-grip" aria-hidden="true"></div><div class="right-tabs" role="tablist" aria-label="侧栏面板"><button id="rightTabDownload" class="right-tab active" role="tab" aria-selected="true" onclick="setRightPanel('download')">下载</button><button id="rightTabStats" class="right-tab" role="tab" aria-selected="false" onclick="setRightPanel('stats')">统计</button><button id="rightTabDest" class="right-tab" role="tab" aria-selected="false" onclick="setRightPanel('dest')">发布</button><button id="rightTabNotify" class="right-tab" role="tab" aria-selected="false" onclick="setRightPanel('notify')">通知</button><button id="rightTabClick" class="right-tab" role="tab" aria-selected="false" onclick="setRightPanel('click')">点击</button><button id="rightTabAccount" class="right-tab" role="tab" aria-selected="false" onclick="setRightPanel('account')">账号</button></div><section id="downloadPanel" class="download-panel" role="tabpanel"><div class="right-heading"><b>媒体下载</b><span>自动刷新 5s</span></div><div class="download-summary"><div><b id="dlRunning">0</b><span>进行中</span></div><div><b id="dlQueued">0</b><span>排队</span></div><div><b id="dlCompleted">0</b><span>完成</span></div><div><b id="dlFailed">0</b><span>失败</span></div></div><div class="download-actions"><button class="button" onclick="toggleDownloadPause()" id="dlPauseBtn">暂停下载</button><button class="button" onclick="retryFailedDownloads()">重试失败</button></div><div id="downloadActive" class="download-active"></div><div class="right-heading"><b>归档任务</b><span>回填 / 补洞</span></div><div id="jobs"><div class="download-empty">暂无归档任务</div></div></section><section id="statsPanel" role="tabpanel" hidden><div class="right-heading"><b>归档统计</b><span>实时</span></div><div id="stats" class="stats"></div></section><section id="destPanel" role="tabpanel" hidden><div class="right-heading"><b>发布目标</b><span>配置</span></div><div id="destinations"></div></section><section id="notifyPanel" role="tabpanel" hidden><div class="right-heading"><b>通知规则</b><span>关键词 → Webhook / Bot</span></div><div id="notifyRules" class="download-active"></div><details class="mt-3"><summary class="plain">➕ 添加规则</summary><div class="stack"><input type="text" id="nName" placeholder="规则名称，如: 服务器告警" class="w-full"><input type="text" id="nKeywords" placeholder="关键词（逗号分隔，空=全部消息）" class="w-full"><input type="text" id="nExclude" placeholder="排除词（逗号分隔）" class="w-full"><input type="text" id="nChats" placeholder="限定聊天 ID（逗号分隔，空=全部）" class="w-full"><input type="text" id="nWebhook" placeholder="Webhook URL（可选，http/https）" class="w-full"><input type="text" id="nBotChat" placeholder="Bot 发送的 chat_id（可选）" class="w-full"><input type="password" id="nBotToken" placeholder="Bot Token（可选，仅写入不回显）" class="w-full"><button class="button block" onclick="submitNotifyRule()">保存规则</button></div></details><div class="right-heading mt-4"><b>最近投递</b><span>最新 30 条</span></div><div id="notifyLog" class="download-active"></div></section><section id="clickPanel" role="tabpanel" hidden><div class="right-heading"><b>自动点击</b><span>按钮 / t.me 链接</span></div><div class="download-item mb-3"><div class="download-name">结果推送 Bot</div><div id="acStatus" class="download-meta">加载中…</div><div class="stack"><input type="text" id="acChat" placeholder="Bot 发送的 chat_id（频道 -100… / 私聊正数）" class="w-full"><input type="password" id="acToken" placeholder="Bot Token（可选，仅写入不回显）" class="w-full"><button class="button block" onclick="saveAutoClick()">保存出口配置</button><button class="button block" onclick="testAutoClick()">发送测试</button><button class="button block" onclick="scanHistoryButtons()" title="把已归档历史消息里的按钮批量放进点击队列">扫描历史按钮</button></div></div><div class="right-heading mt-4"><b>最近点击</b><span>最新 50 条</span></div><div id="acLog" class="download-active"></div></section><section id="accountPanel" role="tabpanel" hidden><div class="right-heading"><b>面板账号</b><span>网页登录凭据</span></div><div class="download-item"><div class="download-name">当前账号</div><div id="accName" class="download-meta">加载中…</div></div><div class="stack mt-3"><input type="password" id="accCur" placeholder="当前密码（必填）" autocomplete="current-password" class="w-full"><input type="text" id="accUser" placeholder="新账号（留空则不修改）" autocomplete="username" class="w-full"><input type="password" id="accNew" placeholder="新密码（留空则不修改，至少 8 位）" autocomplete="new-password" class="w-full"><input type="password" id="accConfirm" placeholder="确认新密码" autocomplete="new-password" class="w-full"><button class="button block btn-save-account" onclick="saveAccount()">保存</button></div><div id="accMsg" class="download-meta msg-slot"></div><div class="right-heading mt-4"><b>说明</b><span>安全</span></div><div class="download-meta lh-17">改密码后，其它设备上的登录会立即失效，当前这一页自动续期。<br>这里管的是<b>网页登录</b>；Telegram 账号在顶栏账号芯片里管理。<br>密码以 PBKDF2 哈希存盘，服务端不保留明文。</div></section></aside></div><div class="sheet-scrim" onclick="closeSheet()"></div>
+<nav class="mobile-nav"><button data-mv="messages" onclick="mobileNav('messages')"><span class="m-ico">▤</span><span>消息</span></button><button data-mv="images" onclick="mobileNav('images')"><span class="m-ico">▧</span><span>图片</span></button><button data-mv="links" onclick="mobileNav('links')"><span class="m-ico">↗</span><span>链接</span></button><button data-mv="inbox" onclick="mobileNav('inbox')"><span class="m-ico">#</span><span>编号</span></button><button data-mv="more" onclick="mobileNav('more')"><span class="m-ico">☰</span><span>全部</span></button></nav><div id="loginModal" class="modal" onclick="if(event.target===this)closeLogin()"><div class="modal-box"><h3>🔐 登录 Telegram 账号<button class="m-sheet-close" onclick="closeLogin()" aria-label="关闭">✕</button></h3><div class="login-tabs" role="tablist"><button class="login-tab active" role="tab" data-pane="qr" onclick="loginPane('qr')">扫码</button><button class="login-tab" role="tab" data-pane="phone" onclick="loginPane('phone')">手机号</button><button class="login-tab" role="tab" data-pane="session" onclick="loginPane('session')">Session</button></div><div id="paneQR" role="tabpanel"><div class="qr-hint">用手机 Telegram：<b>设置 → 设备 → 链接桌面设备</b>，扫描下方二维码</div><div class="qr-wrap"><img id="qrImg" src="" alt="登录二维码"></div></div><div id="panePhone" role="tabpanel" hidden><div class="row"><label for="phoneInput">手机号（含国际区号）</label><input type="tel" id="phoneInput" placeholder="+8613800138000" autocomplete="tel" inputmode="tel" onkeydown="if(event.key==='Enter')phoneSend()"><div class="qr-hint hint-left">验证码会发到你已登录的 Telegram 设备；没登录过则走短信。</div></div><div class="row" id="codeRow" hidden><label for="codeInput">验证码</label><input type="text" id="codeInput" placeholder="5 位数字" autocomplete="one-time-code" inputmode="numeric" maxlength="6" onkeydown="if(event.key==='Enter')phoneSubmitCode()"></div><div class="modal-actions"><button class="button" id="phoneSendBtn" onclick="phoneSend()">发送验证码</button><button class="button" id="codeSubmitBtn" onclick="phoneSubmitCode()" hidden>提交验证码</button></div></div><div id="paneSession" role="tabpanel" hidden><div class="row"><label for="sessionInput">Session 字符串</label><textarea id="sessionInput" rows="4" placeholder="1BVtsOK..." spellcheck="false" autocomplete="off"></textarea><div class="qr-hint hint-left">Telethon 的 <code>StringSession</code> 格式。用于收不到验证码、号码不在身边，或直接复用已有登录态。</div></div><div class="modal-actions"><button class="button" onclick="sessionImport()">导入 session</button></div></div><div class="row" id="pwdRow" hidden><label for="pwdInput">两步验证密码（2FA）</label><input type="password" id="pwdInput" placeholder="云密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitPwd()"><div class="modal-actions"><button class="button" onclick="submitPwd()">提交</button></div></div><div id="qrStatus" class="qr-status"></div><div class="modal-actions"><button class="button" onclick="cancelQR()">取消</button></div></div></div>
+<div id="helpModal" class="modal" onclick="if(event.target===this)closeHelp()"><div class="modal-box help">
+  <h3>❓ 使用说明</h3>
+  <!-- BEGIN help-manual (generated by tools/gen_help.py from docs/用户手册.md, do not edit by hand) -->
+<blockquote>
+<p>这份文档是给<strong>使用者</strong>看的。你只需要照着做，不需要懂技术。
+软件已经买断/授权给你，密钥由提供软件的人单独发给你。</p>
+</blockquote>
+<hr>
+<h4>一、这个软件是做什么的</h4>
+<p><strong>一句话：它把你 Telegram 里看到的内容，实时复制一份到你自己手机里，从此那些内容归你保管。</strong></p>
+<p>Telegram 的消息存在别人的服务器上。发消息的人可以撤回，群管理员可以删除，频道可以清空——
+这些动作对<strong>服务器上</strong>的那一份是有效的，对<strong>你手机里的那一份</strong>没有影响。</p>
+<p>这个软件做的就是那个「另一份」：</p>
+<table>
+<thead>
+<tr>
+<th>你平时的遭遇</th>
+<th>装了这个软件之后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对方发了资料，你还没看完就撤回了</td>
+<td>撤回前已经存下，随时能翻出来</td>
+</tr>
+<tr>
+<td>群里的干货被管理员删了</td>
+<td>「已删除」视图里还在，图片视频都能打开</td>
+</tr>
+<tr>
+<td>一条消息被改了三次，你不知道原来写的什么</td>
+<td>「编辑记录」里三个版本按时间排好</td>
+</tr>
+<tr>
+<td>频道清空跑路，几个月的内容全没了</td>
+<td>你本地一份完整，还能导出</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h4>二、核心特色：撤回和删除，对它无效</h4>
+<p>这是这个软件和「截图保存」「转发给自己」最本质的区别。</p>
+<h5>2.1 它是怎么做到的</h5>
+<p>不是录屏，不是定时截图，而是<strong>接在 Telegram 的协议层上</strong>：</p>
+<ol>
+<li><strong>消息到达</strong>
+   你的账号收到消息的那一刻（不是你点开的那一刻），软件就已经拿到全文和媒体。</li>
+<li><strong>立刻落地</strong>
+   文字写进本地数据库；图片 / 视频 / 文件下载成真实文件，按内容指纹去重存好。</li>
+<li><strong>撤回只是一个标记</strong>
+   对方撤回后，Telegram 通知你的账号「这条没了」。软件收到通知，做的不是删除，
+   而是在自己库里打一个「已删除」的标记：<strong>正文不动、媒体文件不动、时间戳不动</strong>。</li>
+</ol>
+<p>所以「撤回」在软件里不是丢失，而是<strong>多了一个标签</strong>。</p>
+<h5>2.2 你能亲眼看到的证据</h5>
+<ul>
+<li>左侧导航有一栏 <strong>「⚠ 已删除」</strong>，点进去就是所有被撤回/删除的消息</li>
+<li>打开任意一条被删的消息，顶部会有一条横幅：<strong>「⚠ 已从 Telegram 删除，本地档案保留」</strong></li>
+<li>那条消息的图片、视频、文件仍然可以正常打开、下载、导出</li>
+</ul>
+<p>实测样本：撤回后的 6 条消息，原文全部在库，媒体文件的 sha256 与撤回前<strong>逐字节一致</strong>。</p>
+<h5>2.3 必须说清的边界（不吹牛）</h5>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>能不能留</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>软件在运行、账号在线时发的消息，之后被撤回</td>
+<td><strong>能</strong>，原文和媒体都在</td>
+</tr>
+<tr>
+<td>消息发出来时你的账号<strong>不在线</strong>，等你上线时已被删除</td>
+<td>收不到。协议层不会补发已删内容</td>
+</tr>
+<tr>
+<td>私密聊天（端到端加密的 Secret Chat）</td>
+<td>不支持，这类聊天不经过普通归档通道</td>
+</tr>
+<tr>
+<td>一次性查看的「闪照」</td>
+<td>取决于发送方设置，可能拿不到原图</td>
+</tr>
+<tr>
+<td>你自己主动「清空归档」</td>
+<td>会真删。这是唯一会丢数据的操作，有二次确认</td>
+</tr>
+</tbody>
+</table>
+<p><strong>所以它的价值在于「持续在线」</strong>：让它一直挂着，比什么都重要。</p>
+<hr>
+<h4>三、功能一览</h4>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>实时归档</strong></td>
+<td>监控的聊天/频道/群组，新消息即时入库，媒体自动下载</td>
+</tr>
+<tr>
+<td><strong>历史回填</strong></td>
+<td>添加监控源时可指定回溯范围和条数，把过去的内容也抓下来</td>
+</tr>
+<tr>
+<td><strong>已删除视图</strong></td>
+<td>被撤回/删除的消息集中查看，含媒体</td>
+</tr>
+<tr>
+<td><strong>编辑记录</strong></td>
+<td>每条消息的每次修改都留一个版本，可对比</td>
+</tr>
+<tr>
+<td><strong>全站搜索</strong></td>
+<td>中文、英文、中英混排都能搜，支持 <code>from:@某人</code> <code>has:image</code> <code>before:日期</code> 等语法</td>
+</tr>
+<tr>
+<td><strong>分类浏览</strong></td>
+<td>消息 / 图片 / 视频 / 文件 / 链接 分开看</td>
+</tr>
+<tr>
+<td><strong>论坛话题</strong></td>
+<td>话题群组按话题筛选</td>
+</tr>
+<tr>
+<td><strong>编号收件箱</strong></td>
+<td>每个收到的媒体自动编号，按编号查、取、发</td>
+</tr>
+<tr>
+<td><strong>导出</strong></td>
+<td>任意视图导出 CSV / JSON；也能导出成 Telegram Desktop 格式</td>
+</tr>
+<tr>
+<td><strong>通知规则</strong></td>
+<td>关键词命中就推送到 Webhook 或另一个 Bot</td>
+</tr>
+<tr>
+<td><strong>自动点击</strong></td>
+<td>频道里的按钮和 <code>t.me</code> 链接可由账号自动处理并回传结果</td>
+</tr>
+<tr>
+<td><strong>本地存储</strong></td>
+<td>全部数据在你自己手机里，不上传任何第三方服务器</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h4>四、上手四步</h4>
+<h5>第 1 步：安装</h5>
+<p>拿到 APK 文件（<code>TG归档-Android-arm64-x.x.x.apk</code>），传到手机上点击安装。
+系统提示「未知来源」时选允许——这是自己签名的软件，没有走应用商店。</p>
+<blockquote>
+<p>安装包只支持 <strong>arm64</strong>（近几年的安卓手机都是）。安卓 8.0 以上。</p>
+</blockquote>
+<h5>第 2 步：激活（只做一次）</h5>
+<p>打开 App，第一屏不是主界面，而是<strong>激活页</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>屏幕上显示</th>
+<th>这一行是什么意思</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本机尚未授权</td>
+<td>还没激活，正常，接着往下做</td>
+</tr>
+<tr>
+<td>设备码　<code>CT84B4MD</code></td>
+<td><strong>把这 8 位发给提供软件的人</strong></td>
+</tr>
+<tr>
+<td><code>[ 输入密钥 ]</code></td>
+<td>收到密钥后粘贴到这里</td>
+</tr>
+<tr>
+<td><code>[ 激活 ]</code></td>
+<td>点它</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>设备码每台手机不一样，以你自己屏幕上显示的为准，上面这串只是例子。</p>
+</blockquote>
+<ol>
+<li>把<strong>设备码</strong>（8 位字母数字）发给卖你软件的人</li>
+<li>对方回你一串密钥，形如 <code>MF7TH6NK-222C8PKD-2TYRNSC3-THMCNGSF-2H5SPB6G</code></li>
+<li>粘贴进输入框，点「激活」</li>
+</ol>
+<p>激活成功后直接进主界面，以后不用再输。</p>
+<blockquote>
+<p><strong>为什么必须给设备码</strong>：一把密钥只对应一台手机。这样即使密钥被别人看到，也没法在他手机上用。
+换手机时需要重新申请。</p>
+</blockquote>
+<h5>第 3 步：登录 Telegram 账号</h5>
+<p>主界面右上角有一个灰色小标签（显示「未登录」），点它：</p>
+<ul>
+<li><strong>扫码</strong>（推荐）：用你手机上的 Telegram → 设置 → 设备 → 链接桌面设备，扫屏幕上的二维码</li>
+<li><strong>手机号</strong>：输 +86 开头号码，验证码会发到你已登录的 Telegram 设备上</li>
+<li><strong>Session</strong>：已经有 Telethon 的 session 字符串时可直接粘贴</li>
+</ul>
+<blockquote>
+<p>⚠️ 这里登录的是<strong>你自己的 Telegram 账号</strong>，不是机器人。
+软件只是用你的账号「看」，不会替你做任何发消息、加群、改资料的动作。
+开了两步验证的账号，扫码后还会要你输一次云密码。</p>
+</blockquote>
+<h5>第 4 步：添加监控源</h5>
+<p>左侧栏底部「监控源」→ 点 <strong>「＋ 添加源」</strong>，填：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>填什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>目标</td>
+<td><code>@频道用户名</code>、<code>t.me/xxx</code> 链接、或数字 chat id</td>
+</tr>
+<tr>
+<td>回溯条数</td>
+<td>想把过去多少条也抓下来，例如 <code>1000</code>（0 = 只收新消息）</td>
+</tr>
+<tr>
+<td>回溯起点</td>
+<td>可选，例如 <code>2026-01-01</code></td>
+</tr>
+<tr>
+<td>下载媒体</td>
+<td>建议开，否则只存文字</td>
+</tr>
+</tbody>
+</table>
+<p>保存后后台开始回填，右栏「下载」面板能看到进度。</p>
+<p><strong>把你关心的频道、群、私聊都加进来。</strong> 加得越全，能救回来的越多。</p>
+<hr>
+<h4>五、日常怎么用</h4>
+<h5>5.1 左侧导航</h5>
+<table>
+<thead>
+<tr>
+<th>视图</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>▤ 消息</td>
+<td>全部消息时间线，按监控源筛选</td>
+</tr>
+<tr>
+<td>▧ 图片 / ▶ 视频 / □ 文件</td>
+<td>按媒体类型浏览</td>
+</tr>
+<tr>
+<td>↗ 链接</td>
+<td>所有出现过的链接，按域名归类</td>
+</tr>
+<tr>
+<td><strong>⚠ 已删除</strong></td>
+<td>被撤回或删除的内容</td>
+</tr>
+<tr>
+<td><strong>✎ 编辑记录</strong></td>
+<td>改过的消息，每次修改都在</td>
+</tr>
+<tr>
+<td>⚙ 发布目标</td>
+<td>配置把内容转发到别的频道</td>
+</tr>
+<tr>
+<td>▦ 材料</td>
+<td>媒体素材库</td>
+</tr>
+<tr>
+<td># 编号</td>
+<td>编号收件箱（按编号查文件）</td>
+</tr>
+<tr>
+<td>▣ 存储</td>
+<td>数据库/媒体/备份占多少空间</td>
+</tr>
+</tbody>
+</table>
+<h5>5.2 搜索</h5>
+<p>顶部搜索框支持这些写法，可以组合：</p>
+<table>
+<thead>
+<tr>
+<th>写法</th>
+<th>意思</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>合同</code></td>
+<td>普通关键词</td>
+</tr>
+<tr>
+<td><code>from:@zhangsan</code></td>
+<td>只看某人发的</td>
+</tr>
+<tr>
+<td><code>in:@somechannel</code></td>
+<td>只看某个聊天</td>
+</tr>
+<tr>
+<td><code>has:image</code></td>
+<td>只看带图片的</td>
+</tr>
+<tr>
+<td><code>has:video</code></td>
+<td>只看带视频的</td>
+</tr>
+<tr>
+<td><code>before:2026-10-01</code></td>
+<td>某天之前</td>
+</tr>
+<tr>
+<td><code>after:2026-01-01</code></td>
+<td>某天之后</td>
+</tr>
+</tbody>
+</table>
+<p>中文不需要分词，直接搜词就行。</p>
+<h5>5.3 右栏面板</h5>
+<table>
+<thead>
+<tr>
+<th>面板</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>下载</td>
+<td>媒体下载队列：进行中/排队/完成/失败，可暂停、可重试</td>
+</tr>
+<tr>
+<td>统计</td>
+<td>消息数、媒体数、会话数</td>
+</tr>
+<tr>
+<td>通知</td>
+<td>关键词 → Webhook / Bot 推送规则</td>
+</tr>
+<tr>
+<td>点击</td>
+<td>自动点击的出口配置与日志</td>
+</tr>
+<tr>
+<td>账号</td>
+<td>网页登录密码（不是 Telegram 密码）</td>
+</tr>
+</tbody>
+</table>
+<h5>5.4 导出</h5>
+<p>右上角 <strong>「⤓ 导出」</strong>：</p>
+<ul>
+<li><strong>CSV</strong>：表格，Excel 能直接打开</li>
+<li><strong>JSON</strong>：结构化数据，给程序用</li>
+</ul>
+<p>导出的是<strong>当前视图</strong>——你在「已删除」视图导出，拿到的就是被删内容。</p>
+<hr>
+<h4>六、常见问题</h4>
+<p><strong>Q：密钥丢了怎么办？</strong>
+找卖你软件的人，用你的设备码重新签一个。旧密钥作废不影响数据。</p>
+<p><strong>Q：换手机了怎么办？</strong>
+新手机装好后，把<strong>新设备码</strong>发给对方，重新签一个密钥。旧手机上的归档不会自动同步过来，需要先把数据导出。</p>
+<p><strong>Q：到期了会怎样？</strong>
+到期后打不开主界面，回到激活页。数据<strong>不会删除</strong>，续期后照常使用。
+（永久密钥没有这个问题。）</p>
+<p><strong>Q：没网能不能用？</strong>
+能看已经归档的内容。但收新消息、下载新媒体会中断，恢复网络后自动续上。
+如果断网超过 12 小时，开 App 时会尝试联网核对一次授权；核对不上不影响使用，只有对方<strong>明确撤销</strong>你的授权才会锁上。</p>
+<p><strong>Q：卸载 App 会丢数据吗？</strong>
+<strong>会。</strong> 归档数据存在 App 私有目录里，卸载即清空。
+想保住数据：先在「存储」页确认备份，或者把要留的内容导出成 CSV/JSON。</p>
+<p><strong>Q：占多少空间？</strong>
+文字几乎不占。媒体按实际大小算——一个 100MB 的视频就是 100MB。每个监控源加进来之前，想想值不值。
+「▣ 存储」页能看实时的占用和手机剩余空间。</p>
+<p><strong>Q：会被 Telegram 封号吗？</strong>
+软件用的是普通客户端协议，行为和官方客户端一致（不会群发、不会加好友、不会营销）。
+<strong>但任何第三方客户端都存在被限制的可能</strong>，这是 Telegram 的规则，不是软件能保证的。
+建议：用专门的小号做归档，不要用主号。</p>
+<p><strong>Q：能同时归档几个账号？</strong>
+界面支持添加多个账号，但同一时间只有一个在跑。需要切换时在账号面板切换。</p>
+<p><strong>Q：撤回的内容，对方能知道我保存了吗？</strong>
+不能。软件只是被动接收，不产生任何「已读」「已保存」的回执。</p>
+<hr>
+<h4>七、几条提醒</h4>
+<ol>
+<li><strong>让它一直在线。</strong> 归档的价值在连续性，关掉的那段时间是空白。
+   手机端请在系统设置里给它「允许后台运行 / 不受电量优化限制」，否则会被系统杀掉。</li>
+<li><strong>建议用小号。</strong> 归档号只做归档，不加好友、不发消息，风险最低。</li>
+<li><strong>内容自己负责。</strong> 这个软件只是把你本来就能看到的内容存了一份。
+   存下来的东西怎么用、能不能传播，取决于内容和当地法律，与软件无关。</li>
+<li><strong>密钥别外传。</strong> 一把密钥绑一台机器，传出去也用不了，但会暴露你的设备码。</li>
+<li><strong>定期导出重要内容。</strong> 本地归档也会因为手机丢失、误删、存储损坏而丢。
+   真正重要的东西，导出到电脑再存一份。</li>
+</ol>
+<hr>
+<h4>八、遇到问题怎么反馈</h4>
+<p>把这三样发给提供软件的人，能省掉一半沟通：</p>
+<ol>
+<li><strong>设备码</strong>（激活页上那 8 位）</li>
+<li><strong>App 版本</strong>（激活页底部 / 设置里）</li>
+<li><strong>具体现象</strong>：点了哪里、看到什么、期望什么。有截图最好</li>
+</ol>
+<p>不要发你的 Telegram 验证码、两步验证密码、或 session 字符串给任何人——包括卖你软件的人。</p>
+  <!-- END help-manual -->
+  <div class="modal-actions"><button class="button" onclick="closeHelp()">知道了</button></div>
+</div></div>
+<div id="editModal" class="modal" onclick="if(event.target===this)closeEdit()"><div class="modal-box"><h3>⚙ 编辑监控规则</h3><div class="muted" id="editWho" class="mb-3"></div><div class="row"><label>关键词白名单（逗号分隔，命中任一才归档）</label><input type="text" id="editKeywords" placeholder="如: 福利,资源"></div><div class="row"><label>排除词（逗号分隔，命中即跳过）</label><input type="text" id="editExclude" placeholder="如: 广告,推广"></div><div class="row"><label>单文件大小上限（MB，0 = 不限）</label><input type="number" id="editMaxSize" min="0" value="0"></div><div class="row checkbox-row"><input type="checkbox" id="editDownload"><label class="zero" for="editDownload">下载媒体文件到本地</label></div><div class="row checkbox-row"><input type="checkbox" id="editEnabled"><label class="zero" for="editEnabled">启用监控（取消勾选 = 暂停，不删数据）</label></div><div class="row checkbox-row"><input type="checkbox" id="editAutoClick"><label class="zero" for="editAutoClick">自动点击消息里的按钮 / t.me 链接</label></div><div class="row"><label>自动点击关键词（可选，逗号分隔；空=全部点击）</label><input type="text" id="editAutoClickKeywords" placeholder="空=全部，如: 领取,福利"></div><div id="editErr" class="qr-status err" hidden></div><div class="modal-actions"><button class="button" onclick="closeEdit()">取消</button><button class="button primary" onclick="saveEdit()">保存</button></div></div></div>
 <div id="lightbox" class="lightbox" onclick="closeLight()"><span class="close">×</span><div id="light"></div></div><script>
 let editChatId=null;
 function splitList(v){return (v||"").split(",").map(function(x){return x.trim()}).filter(Boolean)}
-function toggleRight(){document.body.classList.toggle("show-right")}
 function editSource(id){
   let t=(state.targets||[]).filter(function(x){return x.ChatID===id})[0]||{};
   editChatId=id;
@@ -50,11 +474,189 @@ document.addEventListener("keydown",function(e){if(e.key==="Escape"&&$("#editMod
 
 const $=s=>document.querySelector(s);
 function applyTheme(theme){document.documentElement.setAttribute("data-theme",theme);localStorage.setItem("theme",theme);let b=$(".theme-toggle");if(b)b.textContent=theme==="light"?"☀":"☾"}
-function initTheme(){let saved=localStorage.getItem("theme"),theme=saved||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");applyTheme(theme)}
+function initTheme(){let saved=localStorage.getItem("theme"),theme=saved||"dark";applyTheme(theme)}
 function toggleTheme(){applyTheme(document.documentElement.getAttribute("data-theme")==="light"?"dark":"light")}
 function toggleSources(){let el=$("#sourceList"),h=document.querySelector(".source-group");if(!el)return;el.classList.toggle("collapsed");if(h)h.classList.toggle("collapsed",el.classList.contains("collapsed"))}
 initTheme();
-const pathView={"/messages":"messages","/deleted":"deleted","/edits":"edits","/media/images":"images","/media/videos":"videos","/media/files":"files","/links":"links","/storage":"storage","/inbox":"inbox","/materials":"materials"},state={chat:0,topic:0,view:(/^\/messages\/\d+$/.test(location.pathname)?"message-detail":(pathView[location.pathname]||"messages")),page:1};function esc(s){let d=document.createElement("div");d.textContent=s||"";return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function safeUrl(u){return /^https?:\/\//i.test(u||"")?u:"#"}function avatar(x){if(!x.AvatarPath)return"";let kind=x.SenderID?"user":"chat",id=x.SenderID||x.ChatID;return id?"/avatar/"+kind+"/"+id:""}function avatarTag(x){let u=avatar(x);return u?'<img class="avatar" src="'+u+'" onerror="this.style.display=\'none\'">':'<span class="avatar"></span>'}function asset(x){if(!x.MediaSHA256){let st=x.MediaStatus||"";if(st==="pending")return '<div class="media-pending">⏳ 媒体下载中，完成后自动出现</div>';if(st==="failed")return '<div class="media-pending">⚠️ 媒体下载失败，去「下载」页重试</div>';return""}let mime=(x.MediaMime||"").toLowerCase(),u="/media/"+x.MediaSHA256,t=x.ThumbnailPath?"/media/thumb/"+x.MediaSHA256:u,p=x.PreviewPath?"/media/preview/"+x.MediaSHA256:u;if(mime.startsWith("image/"))return '<img class="media" loading="lazy" src="'+t+'" data-preview="'+p+'" onclick="showImage(this.dataset.preview)">';if(mime.startsWith("video/")){let vp=x.PreviewPath?'<img class="poster" loading="lazy" alt="" src="/media/preview/'+x.MediaSHA256+'">':'';return '<div class="msg-video'+(vp?' has-poster':'')+'" role="button" tabindex="0" title="点击播放视频" onclick="event.stopPropagation();openMessageMedia(\''+u+'\')">'+vp+'<span class="play-badge">▶</span>'+(vp?'':'<span class="vid-label">视频</span>')+'</div>'}if(mime.startsWith("audio/"))return '<audio class="media" controls src="'+u+'"></audio>';return '<a class="pill" href="'+u+'" target="_blank">打开文件 '+esc(x.MediaMime||"file")+"</a>"}function reactions(x){let rs=x.Reactions;if(!rs||!rs.length)return"";return '<div class="reactions">'+rs.map(r=>'<span class="reaction" title="'+esc(r.Emoji.startsWith("custom:")?"自定义表情":r.Emoji)+'">'+esc(r.Emoji.startsWith("custom:")?"🫶":r.Emoji)+" "+r.Count+"</span>").join("")+"</div>"}
+const pathView={"/messages":"messages","/deleted":"deleted","/edits":"edits","/media/images":"images","/media/videos":"videos","/media/files":"files","/links":"links","/storage":"storage","/inbox":"inbox","/materials":"materials","/more":"more","/add":"add","/accounts":"accounts"},state={chat:0,topic:0,view:(/^\/messages\/\d+$/.test(location.pathname)?"message-detail":(pathView[location.pathname]||"messages")),page:1};function esc(s){let d=document.createElement("div");d.textContent=s||"";return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;")}
+// 返回键/手势返回只改 URL，不会重渲染：state.view 在加载时用 location.pathname
+// 初始化一次，之后全靠 pushState，页面从不监听 history 变化。于是手机上的表现
+// 是"按返回毫无反应，连按几次突然整页刷新或直接退出 App"。按新 URL 重建视图
+// 状态并 refresh，返回键才对应到"回到上一个页面"。
+window.addEventListener("popstate",function(){
+  var p=location.pathname;
+  state.view=(/^\/messages\/\d+$/.test(p)?"message-detail":(pathView[p]||"messages"));
+  state.page=1;
+  document.body.classList.remove("show-right");
+  refresh();
+});
+// One pager for every list. The old code had five near-identical copies plus
+// one hand-written inline-styled block; they drifted in wording and spacing.
+function pagerHTML(page,pages,total,loader){
+  pages=Math.max(1,Number(pages)||1);
+  page=Math.min(Math.max(1,Number(page)||1),pages);
+  // A single page needs no pagination chrome; the empty state already says it.
+  if(pages<=1)return "";
+  return '<div class="pager" data-loader="'+loader+'">'
+    +'<button class="button" data-pg="'+(page-1)+'"'+(page<=1?" disabled":"")+'>上一页</button>'
+    +'<span class="pager-count">第 '+page+' / '+pages+' 页 · 共 '+(Number(total)||0)+' 条</span>'
+    +'<button class="button" data-pg="'+(page+1)+'"'+(page>=pages?" disabled":"")+'>下一页</button></div>'
+}
+// Empty states carry a headline plus an optional hint; previously each view
+// invented its own markup and some said nothing at all.
+function emptyHTML(main,sub,cta){
+  return '<div class="empty"><span class="empty-icon" aria-hidden="true">\u2301</span>'
+    +'<p class="empty-main">'+esc(main)+'</p>'
+    +(sub?'<p class="empty-sub">'+esc(sub)+'</p>':'')
+    +(cta?'<button class="button sm mt-2" onclick="'+cta.fn+'">'+esc(cta.label)+'</button>':'')+'</div>'
+}
+// ── 手机断点判定：只在这里定义一次，翻页模式和后面的手势逻辑都用同一份。
+function isPhone(){return window.matchMedia("(max-width:650px),(max-height:520px)").matches}
+// ── 确认 / 输入：手机上用底部确认条代替系统弹窗。
+// 系统 confirm/prompt 在 WebView 里是浏览器自己画的对话框，字体、配色、
+// 按钮位置都跟 App 无关，且出现在屏幕正中 —— 单手操作时拇指根本够不到。
+// 桌面保持系统弹窗（不违和，也没有够不到的问题）。
+function askSheet(opts){
+  return new Promise(function(resolve){
+    var wrap=document.createElement("div");
+    wrap.className="ask-scrim";
+    wrap.innerHTML='<div class="ask-sheet" role="dialog" aria-modal="true">'
+      +'<div class="ask-grip" aria-hidden="true"></div>'
+      +'<p class="ask-msg">'+esc(opts.msg||"")+'</p>'
+      +(opts.input?'<input class="ask-input" type="text" value="'+esc(opts.value||"")+'" placeholder="'+esc(opts.placeholder||"")+'" autocomplete="off">':'')
+      +'<div class="ask-actions">'
+      +'<button type="button" class="button block ask-cancel">取消</button>'
+      +'<button type="button" class="button block '+(opts.danger?"danger":"primary")+' ask-ok">'+esc(opts.ok||"确定")+'</button>'
+      +'</div></div>';
+    document.body.appendChild(wrap);
+    document.body.classList.add("ask-open");
+    var input=wrap.querySelector(".ask-input");
+    function done(v){
+      wrap.remove();
+      document.body.classList.remove("ask-open");
+      document.removeEventListener("keydown",onKey,true);
+      resolve(v)
+    }
+    function onKey(e){if(e.key==="Escape")done(null)}
+    document.addEventListener("keydown",onKey,true);
+    wrap.addEventListener("click",function(e){if(e.target===wrap)done(null)});
+    wrap.querySelector(".ask-cancel").onclick=function(){done(null)};
+    wrap.querySelector(".ask-ok").onclick=function(){
+      if(input){
+        var v=(input.value||"").trim();
+        if(opts.mustEqual&&v!==opts.mustEqual){toast("请输入「"+opts.mustEqual+"」以确认");return}
+        done(v)
+      }else done(true)
+    };
+    if(input)setTimeout(function(){try{input.focus()}catch(e){}},60)
+  })
+}
+function askConfirm(msg,danger){
+  if(!isPhone())return Promise.resolve(window.confirm(msg));
+  return askSheet({msg:msg,danger:!!danger,ok:"确定"})
+}
+function askText(msg,def,danger){
+  if(!isPhone())return Promise.resolve(window.prompt(msg,def||""));
+  return askSheet({msg:msg,input:true,value:def||"",danger:!!danger,ok:"确定"})
+}
+// ── 骨架屏：.loading-row 在 theme.css 里早就写好了，但前端一次都没用过，
+// 手机上首屏要等核心起来，期间是一片空白 —— 看起来就像 App 卡死了。
+function showSkeleton(n){
+  let f=$("#feed");if(!f)return;
+  f.innerHTML='<div class="feed-skeleton" aria-busy="true">'
+    +new Array(Math.max(1,n||6)+1).join('<div class="loading-row"></div>')+'</div>'
+}
+// ── 加载失败不再是"静默停在旧内容上"：给一个明确的错误态和重试入口。
+function showFeedError(msg,retry){
+  let f=$("#feed");if(!f)return;
+  f.innerHTML='<div class="empty"><span class="empty-icon" aria-hidden="true">\u26A0</span>'
+    +'<p class="empty-main">加载失败</p><p class="empty-sub">'+esc(msg||"归档服务未响应")+'</p>'
+    +'<button class="button primary mt-2" onclick="'+esc(retry||"refresh()")+'">重试</button></div>'
+}
+async function fetchJSON(u){
+  let r=await fetch(u);
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  return r.json()
+}
+// ── 翻页：桌面保持原来的「上一页/下一页 + 滑块」，手机改成「加载更多」+ 自动续接。
+// 手机上 range 滑块的 thumb 只有 18px，拖不准；页码输入框要唤起键盘再手动输入，
+// 在一屏只能看几条内容的手机上这两者都不实用。
+function feedRender(html){
+  let f=$("#feed");if(!f)return;
+  if(window.__feedAppend)f.insertAdjacentHTML("beforeend",html);
+  else f.innerHTML=html
+}
+function feedPagerHTML(page,pages,total,loader){
+  // 桌面完全保持原样：消息视图是带时间轴滑块的那套，其余是简版上下页。
+  if(!isPhone()){
+    if(loader==="loadMessages")return renderPager({page:page,total:total},pages);
+    return pagerHTML(page,pages,total,loader)
+  }
+  page=Math.min(Math.max(1,Number(page)||1),pages);
+  if(page>=pages)return '<div class="feed-end">已经到底了 · 共 '+(Number(total)||0)+' 条</div>';
+  return '<div class="feed-more" data-pg="'+(page+1)+'" data-loader="'+esc(loader)+'">'
+    +'<button class="button primary block" onclick="feedLoadMore(this)">加载更多</button></div>'
+}
+function feedAttachPager(data,pages,loader){
+  let f=$("#feed");if(!f)return;
+  f.querySelectorAll(".feed-more,.feed-end").forEach(function(n){n.remove()});
+  // 0 条时 render() 已经画了空态。再追加「已经到底了 · 共 0 条」自相矛盾。
+  let total=Number(data&&data.total);
+  if(!Number.isFinite(total)||total<=0){window.__feedAppend=false;return}
+  let html=feedPagerHTML(data&&data.page,pages,data&&data.total,loader);
+  if(html)f.insertAdjacentHTML("beforeend",html);
+  feedObserveMore();
+  window.__feedAppend=false
+}
+function feedLoadMore(btn){
+  let host=btn&&btn.closest?btn.closest(".feed-more"):null;
+  if(!host||window.__feedAppend)return;
+  let name=host.dataset.loader||"loadMessages";
+  let fn=window[name];
+  if(typeof fn!=="function")return;
+  btn.disabled=true;btn.textContent="加载中…";
+  state.page=Number(host.dataset.pg)||((state.page||1)+1);
+  window.__feedAppend=true;
+  Promise.resolve(fn()).catch(function(){window.__feedAppend=false})
+}
+var feedObserver=null;
+function feedObserveMore(){
+  if(!isPhone()||typeof IntersectionObserver!=="function")return;
+  let el=document.querySelector(".feed-more");
+  if(feedObserver)feedObserver.disconnect();
+  if(!el)return;
+  feedObserver=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(!e.isIntersecting)return;
+      let b=e.target.querySelector("button");
+      if(b&&!b.disabled)feedLoadMore(b)
+    })
+  },{rootMargin:"400px 0px"});
+  feedObserver.observe(el)
+}
+// 选中菜单项后收起，否则点完还得再点一次才看到结果。
+document.addEventListener("click",function(e){
+  let mi=e.target.closest(".pop-list button");
+  if(mi){let d=mi.closest(".pop-menu");if(d)d.removeAttribute("open")}
+});
+// <details> 不会因为点别处自动收起，菜单开着就没法用后面的控件。
+document.addEventListener("click",function(e){
+  document.querySelectorAll(".pop-menu[open]").forEach(function(d){
+    if(!d.contains(e.target))d.removeAttribute("open");
+  });
+});
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape")document.querySelectorAll(".pop-menu[open]").forEach(function(d){d.removeAttribute("open")});
+});
+document.addEventListener("click",function(e){
+  let b=e.target.closest(".pager button[data-pg]");
+  if(!b||b.disabled)return;
+  let box=b.closest(".pager"),fn=box&&box.dataset.loader;
+  if(!fn||typeof window[fn]!=="function")return;
+  let pg=parseInt(b.dataset.pg,10);
+  if(!Number.isSafeInteger(pg)||pg<1)return;
+  state.page=pg;window[fn]();
+});function safeUrl(u){return /^https?:\/\//i.test(u||"")?u:"#"}function avatar(x){if(!x.AvatarPath)return"";let kind=x.SenderID?"user":"chat",id=x.SenderID||x.ChatID;return id?"/avatar/"+kind+"/"+id:""}function avatarTag(x){let u=avatar(x);return u?'<img class="avatar" src="'+u+'" onerror="this.style.display=\'none\'">':'<span class="avatar"></span>'}function asset(x){if(!x.MediaSHA256){let st=x.MediaStatus||"";if(st==="pending")return '<div class="media-pending">⏳ 媒体下载中，完成后自动出现</div>';if(st==="failed")return '<div class="media-pending">⚠️ 媒体下载失败，去「下载」页重试</div>';return""}let mime=(x.MediaMime||"").toLowerCase(),u="/media/"+x.MediaSHA256,t=x.ThumbnailPath?"/media/thumb/"+x.MediaSHA256:u,p=x.PreviewPath?"/media/preview/"+x.MediaSHA256:u;if(mime.startsWith("image/"))return '<img class="media" loading="lazy" src="'+t+'" data-preview="'+p+'" onclick="showImage(this.dataset.preview)">';if(mime.startsWith("video/")){let vp=x.PreviewPath?'<img class="poster" loading="lazy" alt="" src="/media/preview/'+x.MediaSHA256+'">':'';return '<div class="msg-video'+(vp?' has-poster':'')+'" role="button" tabindex="0" title="点击播放视频" onclick="event.stopPropagation();openMessageMedia(\''+u+'\')">'+vp+'<span class="play-badge">▶</span>'+(vp?'':'<span class="vid-label">视频</span>')+'</div>'}if(mime.startsWith("audio/"))return '<audio class="media" controls src="'+u+'"></audio>';return '<a class="pill" href="'+u+'" target="_blank">打开文件 '+esc(x.MediaMime||"file")+"</a>"}function reactions(x){let rs=x.Reactions;if(!rs||!rs.length)return"";return '<div class="reactions">'+rs.map(r=>'<span class="reaction" title="'+esc(r.Emoji.startsWith("custom:")?"自定义表情":r.Emoji)+'">'+esc(r.Emoji.startsWith("custom:")?"🫶":r.Emoji)+" "+r.Count+"</span>").join("")+"</div>"}
 // kbButtons renders the inline keyboard stored with the message so you can see
 // what was clickable; URL buttons open in a new tab, callback buttons are static.
 function kbButtons(x){let bs=x.buttons||x.Buttons;if(!bs||!bs.length)return"";let out="";bs.forEach(function(b,i){let t=esc(b.text||"按钮");let u=b.url||"";
@@ -62,17 +664,144 @@ function kbButtons(x){let bs=x.buttons||x.Buttons;if(!bs||!bs.length)return"";le
  else out+='<button class="button kb-click" type="button" title="用你的账号点这个按钮，机器人回的内容会自动归档" onclick="event.stopPropagation();clickKb('+x.RowID+','+i+',this)">🔘 '+t+'</button>'});
  return out?'<div class="kb">'+out+'</div>':""}function msgRow(x,opts){opts=opts||{};if(x.EventType)return '<div class="system-event" data-rowid="'+x.RowID+'"><span class="event-line">'+esc(x.Text||x.EventType)+'</span><span class="time"> · '+new Date(x.Date*1000).toLocaleString()+'</span></div>';let reply=x.ReplyToRowID?'<div class="reply-ref" onclick="event.stopPropagation();location.href=\'/messages?focus='+x.ReplyToRowID+'\'">↳ 回复 '+esc(x.ReplyToSenderName||("消息 #"+x.ReplyToMessageID))+': '+esc(x.ReplyToText||"")+'</div>':"";let forwardName=x.ForwardFromName||(x.ForwardFromChatID?"Chat #"+x.ForwardFromChatID:x.ForwardFromID?"User #"+x.ForwardFromID:"");let forward=forwardName?'<div class="forward-ref">⇄ 转发自 '+esc(forwardName)+'</div>':"";let topic=x.ThreadID?'<span class="topic-pill" role="button" title="查看话题" onclick="event.stopPropagation();pickTopic('+x.ThreadID+')">#话题 '+x.ThreadID+'</span>':"";let actions='<div class="message-actions"><a class="button" href="/messages?focus='+x.RowID+'">查看原文</a><button class="button" onclick="event.stopPropagation();navigator.clipboard&&navigator.clipboard.writeText(location.origin+\\"/messages?focus=\\"+x.RowID)">复制链接</button><button class="button danger" onclick="event.stopPropagation();delRow('+x.RowID+',this)" title="仅在本机归档隐藏，可恢复；Telegram 原件与文件都不动">删除</button></div>';let textHTML=opts.text!==undefined?opts.text:(x.Text||x.Caption);let mediaHTML=opts.media!==undefined?opts.media:asset(x);let kbHTML=opts.kb!==undefined?opts.kb:kbButtons(x);return '<article class="msg '+(x.Deleted?"deleted":"")+'" data-rowid="'+x.RowID+'" onclick="clearFocusIfOther(this)">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span>'+topic+(x.Pinned?'<span class="pill">置顶</span>':"")+(x.Deleted?'<span class="pill">已删除</span>':"")+(opts.groupCount?'<span class="pill">媒体组 · '+opts.groupCount+'</span>':"")+'</div><div class="text">'+esc(textHTML)+'</div>'+mediaHTML+kbHTML+reactions(x)+reply+forward+actions+'</div></article>'}
 function renderGroup(g){let anchor=g[0],text='',kb='';for(const y of g){if(!text){let v=y.Text||y.Caption;if(v)text=v}if(!kb){let b=kbButtons(y);if(b)kb=b}}let media='<div class="media-group">'+g.map(y=>asset(y)).join("")+'</div><div class="media-group-note">同一媒体组 · 共 '+g.length+' 项，已合并显示</div>';return msgRow(anchor,{media:media,text:text,kb:kb,groupCount:g.length})}
-function render(rs){if(!rs||!rs.length){$("#feed").innerHTML='<div class="empty">暂无归档内容</div>';return}let buckets=[],byKey={};for(const x of rs){if(!x.GroupedID||x.EventType){buckets.push([x]);continue}let k=x.ChatID+":"+x.GroupedID;if(byKey[k]!==undefined){buckets[byKey[k]].push(x);continue}byKey[k]=buckets.length;buckets.push([x])}$("#feed").innerHTML=buckets.map(g=>g.length>1?renderGroup(g):msgRow(g[0])).join("")}
-async function delRow(rowid,el){if(!confirm("从本地归档删除这条消息？\n\nTelegram 上的原件和服务端文件都不动，只是在本机视图里隐藏（可在「已删除」里恢复）。"))return;try{let r=await fetch("/api/message/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rowid:rowid,mode:"soft"})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已从本地归档隐藏");let a=el&&el.closest?el.closest(".msg"):null;if(a)a.remove()}catch(e){toast("删除请求失败")}}
-async function delRowHard(rowid,el){if(!confirm("彻底删除？消息行、媒体记录与对象文件都会被移除，不可恢复。"))return;if(!confirm("再确认一次：这是永久删除，文件会从磁盘消失。"))return;try{let r=await fetch("/api/message/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rowid:rowid,mode:"hard"})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已彻底删除 · 释放 "+fmtSize(d.bytes_freed||0));let a=el&&el.closest?el.closest(".detail-wrap"):null;if(a)a.remove();refresh()}catch(e){toast("删除请求失败")}}
+function render(rs){if(!rs||!rs.length){let a=window.__auth||{},sub,cta;if(a.authorized){let who=a.user?(a.user.username?"@"+a.user.username:(a.user.name||String(a.user.id))):"当前账号";let n=(state.targets||[]).length;if(!n){sub="已登录 "+who+"，但还没有监控源。添加一个频道或群组，归档会实时出现";cta={label:"＋ 添加监控源",fn:"openAdd()"}}else{sub="监控源已就绪（"+n+" 个），暂时还没有新消息";cta={label:"查看监控源",fn:"toggleSources()"}}}else{sub="登录 Telegram 账号并添加监控源后，归档会实时出现";cta={label:"登录 Telegram 账号",fn:"acctClick()"}}$("#feed").innerHTML=emptyHTML("暂无归档内容",sub,cta);return}let buckets=[],byKey={};for(const x of rs){if(!x.GroupedID||x.EventType){buckets.push([x]);continue}let k=x.ChatID+":"+x.GroupedID;if(byKey[k]!==undefined){buckets[byKey[k]].push(x);continue}byKey[k]=buckets.length;buckets.push([x])}feedRender(buckets.map(g=>g.length>1?renderGroup(g):msgRow(g[0])).join(""))}
+async function delRow(rowid,el){if(!await askConfirm("从本地归档删除这条消息？\n\nTelegram 上的原件和服务端文件都不动，只是在本机视图里隐藏（可在「已删除」里恢复）。"))return;try{let r=await fetch("/api/message/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rowid:rowid,mode:"soft"})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已从本地归档隐藏");let a=el&&el.closest?el.closest(".msg"):null;if(a)a.remove()}catch(e){toast("删除请求失败")}}
+async function delRowHard(rowid,el){let t=await askText("彻底删除？消息行、媒体记录与对象文件都会被移除，不可恢复。\n\n输入「删除」确认：","",true);if(t!=="删除"){toast("已取消");return}try{let r=await fetch("/api/message/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rowid:rowid,mode:"hard"})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已彻底删除 · 释放 "+fmtSize(d.bytes_freed||0));let a=el&&el.closest?el.closest(".detail-wrap"):null;if(a)a.remove();refresh()}catch(e){toast("删除请求失败")}}
 async function restoreRow(rowid){try{let r=await fetch("/api/message/delete",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rowid:rowid,mode:"restore"})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("恢复失败: "+(d.error||r.status));return}toast("已恢复");refresh()}catch(e){toast("恢复请求失败")}}
-async function scanHistoryButtons(){let limit=parseInt(prompt("扫描多少个监控源历史消息（每个源）？建议 50，上限 500。","50")||"0",10);if(!limit||limit<1)return;toast("正在扫描…");try{let r=await fetch("/api/autoclick/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({limit:limit,include_recent:true})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("扫描失败: "+(d.error||r.status));return}toast("已入队 "+d.queued+" 条 · 覆盖 "+d.chats+" 个源");loadAutoClick()}catch(e){toast("扫描请求失败")}}
+async function scanHistoryButtons(){let limit=parseInt(await askText("扫描多少个监控源历史消息（每个源）？建议 50，上限 500。","50")||"0",10);if(!limit||limit<1)return;toast("正在扫描…");try{let r=await fetch("/api/autoclick/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({limit:limit,include_recent:true})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("扫描失败: "+(d.error||r.status));return}toast("已入队 "+d.queued+" 条 · 覆盖 "+d.chats+" 个源");loadAutoClick()}catch(e){toast("扫描请求失败")}}
 function renderStats(m){let groups=[["messages_total",m.db&&m.db.messages_total||0],["media_total",m.db&&m.db.media_total||0],["links_total",m.db&&m.db.links_total||0],["events_total",m.db&&m.db.events_total||0],["media_pending",m.media&&m.media.pending||0],["media_completed",m.media&&m.media.completed||0],["media_failed",m.media&&m.media.failed||0],["http_5xx",m.http&&m.http.requests_5xx||0]];let max=Math.max(1,...groups.map(x=>Number(x[1])||0));$("#stats").innerHTML=groups.map(x=>'<div class="stat"><span class="muted">'+x[0]+'</span><div class="num">'+x[1]+'</div><div class="stat-bar"><i style="width:'+Math.min(100,(Number(x[1])||0)*100/max)+'%"></i></div></div>').join("")}
-function mobileNav(view){if(view==="messages"){state.view="messages";state.page=1;history.pushState({},"","/messages");document.body.classList.remove("show-right");refresh()}else if(view==="images"){state.view="images";state.page=1;history.pushState({},"","/media/images");document.body.classList.remove("show-right");refresh()}}
-let _rawFetch=window.fetch;window.fetch=async(u,o)=>{let r=await _rawFetch(u,o);if(r&&r.status===401&&!window._authWarned){window._authWarned=true;document.body.innerHTML='<div style="padding:60px 30px;font:15px system-ui;color:#e9edf5;background:#080a0f;line-height:1.8">401 未授权：本站启用了 Token 认证（--auth-token 适用于脚本/curl）。<br>浏览器访问请改用 <b>--auth-basic user:pass</b> 启动 serve。</div>'}return r};
-async function load(){let s=await fetch("/api/metrics").then(r=>r.json()).catch(()=>null);if(s)renderStats(s);$("#footerHost").textContent="· "+location.host;let ts=await fetch("/api/targets").then(r=>r.json());state.targets=ts||[];$("#sources").innerHTML='<button class="source active" onclick="pick(0,this)">全部来源</button>'+(ts||[]).map(x=>'<div class="source-row"><button class="source" onclick="pick('+x.ChatID+',this)">'+esc(x.Username||x.ChatID)+'<small>'+esc(x.ArchiveMode||"local")+'</small></button><span class="src-actions"><button class="button" title="编辑规则" onclick="event.stopPropagation();editSource('+x.ChatID+')">⚙</button><button class="button" title="补洞同步" onclick="event.stopPropagation();syncSource('+x.ChatID+')">↻</button><button class="button" title="移除监控" onclick="event.stopPropagation();removeSource('+x.ChatID+')">✕</button></span></div>').join("")+'<button class="addsrc" onclick="openAdd()">＋ 添加源</button>';let ds=await fetch("/api/destinations").then(r=>r.json());$("#destinations").innerHTML=(ds||[]).map(x=>'<div style="padding:8px 0"><b>'+esc(x.Name)+'</b><div class="muted">'+esc(x.Kind)+" · "+(x.Enabled?"enabled":"disabled")+"</div></div>").join("");refresh();loadAuth();loadJobs()}async function refresh(){
-  let meta={messages:["消息","实时归档 · 本地保留 Telegram 内容","/messages"],images:["图片","按媒体类型浏览已归档内容","/media/images"],videos:["视频","按媒体类型浏览已归档内容","/media/videos"],files:["文件","按媒体类型浏览已归档内容","/media/files"],links:["链接","从消息中提取并索引的 URL","/links"],deleted:["已删除","Telegram 已删除，但本地档案仍然保留","/deleted"],edits:["编辑记录","保留消息的历史编辑版本","/edits"],inbox:["编号","按接收编号归档的媒体台账","/inbox"],materials:["材料","折叠媒体组 · 跨频道去重后的整洁视图","/materials"],storage:["存储","数据库、对象存储与磁盘空间","/storage"],"message-detail":["消息详情","完整查看单条归档消息及其上下文","/messages/<rowid>"]};
-  let m=meta[state.view]||meta.messages;document.title=m[0]+" · Telegram Archive";let vh=$("#viewHead");if(vh){vh.querySelector("h1").textContent=m[0];vh.querySelector("p").textContent=m[1];vh.querySelector(".view-count").textContent=m[2]}
+// 底栏切换用 replaceState 而不是 pushState：导航是"换视图"不是"进新页面"，
+// pushState 会让每次来回点都堆一条历史，用户在手机上按返回要连点十几次才
+// 能退出 App —— 而且现在有了 popstate 监听，那些历史条目还会依次触发重渲染，
+// 看起来就是界面在自己乱跳。
+//
+// 通用化：原来只认 messages / images 两个视图，10 个视图里有 4 个在手机上
+// 被 display:none 藏掉、其余全塞进「更多」。现在底栏 5 格各自直达。
+var MOBILE_PATHS={messages:"/messages",images:"/media/images",videos:"/media/videos",files:"/media/files",links:"/links",deleted:"/deleted",edits:"/edits",storage:"/storage",inbox:"/inbox",materials:"/materials",more:"/more",add:"/add",accounts:"/accounts"};
+// 手机视图栈：底栏切换不写浏览器历史（避免返回键要按十几次），
+// 但用户仍然需要"图片→返回=消息"。用一条内存栈承接返回键。
+window.__tdlViewStack=[];
+function mobileNav(view,fromBack){
+  if(!MOBILE_PATHS[view])return;
+  if(state.view!==view){
+    if(!fromBack)window.__tdlViewStack.push(state.view);
+    state.view=view;
+  }
+  state.page=1;
+  history.replaceState({}, "", MOBILE_PATHS[view]);
+  closeSheet();
+  refresh()
+}
+// 子页面（全部功能 / 添加监控源 / Telegram 账号）走的是同一套视图栈，
+// 而不是在页面之上再叠一层浮层：进入时压栈、返回时出栈，和图片/链接/编号
+// 完全同构。这样从「全部」里点添加源，表单直接就是当前页，不需要先关掉
+// 底下那一层才能看到。
+function openPage(view){
+  if(!MOBILE_PATHS[view])return;
+  if(state.view!==view)window.__tdlViewStack.push(state.view);
+  state.view=view;
+  state.page=1;
+  history.replaceState({}, "", MOBILE_PATHS[view]);
+  closeSheet();
+  refresh()
+}
+function goBackPage(){
+  var st=window.__tdlViewStack||[];
+  if(st.length){mobileNav(st.pop(),true);return}
+  mobileNav("messages",true)
+}
+// 底栏高亮：视图直达 + 子页面归到「全部」；抽屉打开时也算「全部」态。
+function syncMobileNav(){
+  var more=state.view==="more"||state.view==="add"||state.view==="accounts"||document.body.classList.contains("show-right");
+  document.querySelectorAll(".mobile-nav button[data-mv]").forEach(function(b){
+    var mv=b.dataset.mv;
+    var on=(mv===state.view)||(mv==="more"&&more);
+    b.classList.toggle("active",on);
+    if(on)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");
+  });
+}
+function openRight(panel){if(typeof setRightPanel==="function")setRightPanel(panel);openSheet()}
+// 首次 api_id/api_hash 设置页此前只有通知栏「更换凭据」能进；手机端补一个正规入口。
+function openSetup(){
+  if(window.TdlAndroid&&typeof TdlAndroid.openSetup==="function"){TdlAndroid.openSetup();return}
+  toast("此入口仅在 Android App 内可用")
+}
+// 搜索：桌面保留顶栏输入框；手机把它变成全屏搜索页，键盘收起即退出。
+function openMobileSearch(){document.body.classList.add("m-search-open");setTimeout(function(){var q=$("#q");if(q){try{q.focus()}catch(e){}}},60)}
+function closeMobileSearch(){document.body.classList.remove("m-search-open");var q=$("#q");if(q&&q.blur){try{q.blur()}catch(e){}}}
+// 「更多」是底部抽屉而不是桌面侧栏：打开时锁住背后滚动，点遮罩收起。
+function toggleRight(){if(document.body.classList.contains("show-right"))closeSheet();else openSheet()}
+function openSheet(){
+  document.body.classList.add("show-right");
+  var s=document.querySelector(".sheet-scrim");if(s)s.style.display="block";
+  document.body.style.overflow="hidden";
+  syncMobileNav();
+}
+function closeSheet(){
+  if(!document.body.classList.contains("show-right"))return;
+  document.body.classList.remove("show-right");
+  var s=document.querySelector(".sheet-scrim");if(s)s.style.display="none";
+  document.body.style.overflow="";
+  syncMobileNav();
+}
+// 网络层统一兜底。loadMessages / loadMedia / loadLinks 都没有 try/catch，
+// 核心重启中或断网时 fetch 直接 reject：promise 静默失败，界面停在旧内容上，
+// 用户完全不知道发生了什么。这里吞掉网络错误并给一次明确提示，同时返回一个
+// 结构完整的 503，让调用方（都是 r.json() 后取 items/total）不至于崩溃。
+let _rawFetch=window.fetch;window.fetch=async(u,o)=>{let r;
+try{r=await _rawFetch(u,o)}catch(e){
+  if(!window._netWarned){window._netWarned=true;
+    if(typeof toast==="function")toast("请求失败，归档服务可能正在重启");
+    setTimeout(function(){window._netWarned=false},5000)}
+  return new Response(JSON.stringify({items:[],total:0,page:1,page_size:50}),
+    {status:503,statusText:"network error",headers:{"Content-Type":"application/json"}})}
+if(r&&r.status===401&&!window._authWarned){window._authWarned=true;
+// 会话过期不等于页面不可用：整页替换成错误文案会把已经加载出来的归档内容
+// 一起抹掉，而且原文案假定"一定是 Token 认证"，对表单登录是错的。有横幅
+// 就挂横幅，把选择留给用户；只有连横幅函数都拿不到时才退回裸文案。
+if(typeof window.showSessionBanner==="function"){window.showSessionBanner()}
+else{document.body.innerHTML='<div class="fatal-page">401 未授权：需要登录。<br>表单登录请访问 <b>/login</b>；脚本/curl 请用 <b>--auth-token</b> 启动 serve。</div>'}}return r};
+function sourceListHTML(ts,mobile){
+  var all='<button class="source" onclick="'+(mobile?"pickMobile(0,this)":"pick(0,this)")+'">全部来源</button>';
+  var rows=(ts||[]).map(function(x){
+    var onpick=(mobile?"pickMobile(":"pick(")+x.ChatID+",this)";
+    return '<div class="source-row"><button class="source" onclick="'+onpick+'">'+esc(x.Username||x.ChatID)+'<small>'+esc(x.ArchiveMode||"local")+'</small></button><span class="src-actions"><button class="button" title="编辑规则" onclick="event.stopPropagation();editSource('+x.ChatID+')">⚙</button><button class="button" title="补洞同步" onclick="event.stopPropagation();syncSource('+x.ChatID+')">↻</button><button class="button" title="移除监控" onclick="event.stopPropagation();removeSource('+x.ChatID+')">✕</button></span></div>'
+  }).join("");
+  var add='<button class="addsrc" onclick="openAdd()">＋ 添加源</button>';
+  var rm=(ts||[]).length?'<button class="addsrc danger" onclick="removeAllSources()">⊗ 移除全部监控源（'+ts.length+'）</button>':'';
+  return all+rows+add+rm;
+}
+function renderSources(ts){
+  var a=$("#sources");if(a)a.innerHTML=sourceListHTML(ts,false);
+  var b=$("#mSources");if(b)b.innerHTML=sourceListHTML(ts,true);
+}
+function pickMobile(id,el){pick(id,el);mobileNav("messages")}
+async function load(){let s=await fetch("/api/metrics").then(r=>r.json()).catch(()=>null);if(s)renderStats(s);$("#footerHost").textContent="· "+location.host;let ts=await fetch("/api/targets").then(r=>r.json()).catch(()=>[]);if(!Array.isArray(ts))ts=[];state.targets=ts;renderSources(ts);let ds=await fetch("/api/destinations").then(r=>r.json()).catch(()=>[]);if(!Array.isArray(ds))ds=[];$("#destinations").innerHTML=ds.map(x=>'<div class="py-2"><b>'+esc(x.Name)+'</b><div class="muted">'+esc(x.Kind)+" · "+(x.Enabled?"enabled":"disabled")+"</div></div>").join("");refresh();loadAuth();loadJobs()}async function refresh(){
+  let meta={messages:["消息","实时归档 · 本地保留 Telegram 内容","/messages"],images:["图片","按媒体类型浏览已归档内容","/media/images"],videos:["视频","按媒体类型浏览已归档内容","/media/videos"],files:["文件","按媒体类型浏览已归档内容","/media/files"],links:["链接","从消息中提取并索引的 URL","/links"],deleted:["已删除","Telegram 已删除，但本地档案仍然保留","/deleted"],edits:["编辑记录","保留消息的历史编辑版本","/edits"],inbox:["编号","按接收编号归档的媒体台账","/inbox"],materials:["材料","折叠媒体组 · 跨频道去重后的整洁视图","/materials"],storage:["存储","数据库、对象存储与磁盘空间","/storage"],more:["全部功能","内容分类 · 监控源 · 管理 · 账号","/more"],add:["添加监控源","选择频道、群组或用户并设置归档规则","/add"],accounts:["Telegram 账号","多账号切换、登录与登出","/accounts"],"message-detail":["消息详情","完整查看单条归档消息及其上下文","/messages/<rowid>"]};
+  let m=meta[state.view]||meta.messages;document.title=m[0]+" · Telegram Archive";let mt=$("#mTitle");if(mt)mt.textContent=(state.view==="add"||state.view==="accounts")?"全部功能":m[0];let vh=$("#viewHead");if(vh){vh.querySelector("h1").textContent=m[0];vh.querySelector("p").textContent=m[1];vh.querySelector(".view-count").textContent=m[2];let bc=vh.querySelector(".breadcrumbs b");if(bc)bc.textContent=m[0]}document.querySelectorAll(".nav button").forEach(b=>{let on=b.dataset.view===state.view;b.classList.toggle("active",on);if(on)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
+  syncMobileNav();
+  // 三个子页面都是 main 里的普通 section：哪个视图就显示哪个，其余让位给
+  // feed。没有 fixed 浮层，也就没有「层叠顺序不对导致点了看不到」的问题。
+  var pageViews={more:"moreView",add:"addView",accounts:"accountsView"};
+  var pageID=pageViews[state.view];
+  // 添加源 / 账号页自己带着标题和关闭按钮，桌面端不要再叠一遍 viewHead。
+  if(vh)vh.style.display=(pageID&&state.view!=="more")?"none":"";
+  document.querySelectorAll(".page-view").forEach(function(el){
+    var on=el.id===pageID;
+    // 页面视图现在是独立滚动容器，进入另一个页面时必须回到顶部，
+    // 否则会把上一个页面的滚动位置带过去（从「全部」底部进「添加源」时
+    // 直接落在表单中段）。
+    if(on&&!el.classList.contains("show"))el.scrollTop=0;
+    el.classList.toggle("show",on)
+  });
+  var feedEl=$("#feed");if(feedEl)feedEl.style.display=pageID?"none":"";
+  if(pageID){
+    $("#deletedBanner").style.display="none";
+    var tb=$("#topicBar");if(tb)tb.hidden=true;
+    if(state.view==="accounts")loadAccounts();
+    if(state.view==="add"&&!isPhone())setTimeout(function(){var el=$("#addTarget");if(el)el.focus()},50);
+    return
+  }
   if(state.view==="inbox"){return loadInbox()}if(state.view==="materials"){return loadMaterials()}
   if(state.view==="storage"){$("#deletedBanner").style.display="none";return loadStorage()}
   if(state.view==="message-detail"){return loadMessageDetail()}
@@ -89,7 +818,16 @@ async function loadMessages(){
   if(urlQ!==null)$("#q").value=urlQ;
   let q=$("#q").value.trim(),page=state.page||1;
   let u="/api/messages/page?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(state.chat?"&chat="+state.chat:"")+(state.topic?"&topic="+state.topic:"");
-  let data=await fetch(u).then(r=>r.json());
+  let data;
+  try{
+    // 翻到第 2 页及以后是"往已有内容后面接"，不要再把列表清空成骨架屏。
+    if(!window.__feedAppend)showSkeleton(6);
+    data=await fetchJSON(u);
+  }catch(e){
+    window.__feedAppend=false;
+    showFeedError("消息加载失败（"+e.message+"）","loadMessages()");
+    return
+  }
   render(data.items||[]);
   let focus=params.get("focus"),target=null,targetInPage=false;
   if(focus){
@@ -123,7 +861,9 @@ async function loadMessages(){
     history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));
   }
   let pages=Math.max(1,Math.ceil((data.total||0)/(data.page_size||50)));
-  if(!targetInPage)renderPager(data,pages);
+  // 有 focus 时整页只显示定位到的那一条，分页在这里没有意义。
+  if(!targetInPage)feedAttachPager(data,pages,"loadMessages");
+  else window.__feedAppend=false;
   loadTopicBar();
 }
 // The pager is a draggable timeline: the range slider scrubs through the whole
@@ -131,7 +871,9 @@ async function loadMessages(){
 // buttons step one page, and the number box jumps to an exact page.
 function renderPager(data,pages){
   let page=data.page||1;
-  $("#feed").insertAdjacentHTML("beforeend",'<div class="pager pager-card"><div class="pager-line"><button class="button" '+(page<=1?"disabled":"")+' onclick="state.page='+(page-1)+';loadMessages()">上一页</button><input type="range" class="pager-slider" min="1" max="'+pages+'" value="'+page+'" step="1" aria-label="按时间拖动浏览历史" oninput="scrubPager(this)" onchange="applyScrub()"><button class="button" '+(page>=pages?"disabled":"")+' onclick="state.page='+(page+1)+';loadMessages()">下一页</button></div><div class="pager-meta"><span id="pagerPos">第 '+page+" / "+pages+' 页 · 共 '+data.total+' 条</span><input type="number" class="pager-jump" min="1" max="'+pages+'" value="'+page+'" aria-label="跳转到页" onchange="jumpPager(this.value)"></div></div>');
+  // A single page needs no pagination chrome; the empty state already says it.
+  if(!data.total)return "";
+  return '<div class="pager pager-card"><div class="pager-line"><button class="button" '+(page<=1?"disabled":"")+' onclick="state.page='+(page-1)+';loadMessages()">上一页</button><input type="range" class="pager-slider" min="1" max="'+pages+'" value="'+page+'" step="1" aria-label="按时间拖动浏览历史" oninput="scrubPager(this)" onchange="applyScrub()"><button class="button" '+(page>=pages?"disabled":"")+' onclick="state.page='+(page+1)+';loadMessages()">下一页</button></div><div class="pager-meta"><span id="pagerPos">第 '+page+" / "+pages+' 页 · 共 '+data.total+' 条</span><input type="number" class="pager-jump" min="1" max="'+pages+'" value="'+page+'" aria-label="跳转到页" onchange="jumpPager(this.value)"></div></div>';
 }
 let scrubTimer=null;
 function scrubPager(el){
@@ -189,32 +931,47 @@ async function loadDeleted(){
   $("#deletedBanner").style.display="block";
   let q=$("#q").value.trim(),page=state.page||1;
   let u="/api/deleted?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"");
-  let data=await fetch(u).then(r=>r.json());
+  let data;
+  try{
+    if(!window.__feedAppend)showSkeleton(6);
+    data=await fetchJSON(u);
+  }catch(e){
+    window.__feedAppend=false;
+    showFeedError("已删除列表加载失败（"+e.message+"）","loadDeleted()");
+    return
+  }
   renderDeleted(data)
 }
 function renderDeleted(data){
   if(!data||!data.items||!data.items.length){
-    $("#feed").innerHTML='<div class="empty">暂无已删除消息，本地档案中没有符合条件的记录</div>';return
+    window.__feedAppend=false;
+    $("#feed").innerHTML=emptyHTML("暂无已删除消息","本地档案中没有符合条件的记录");return
   }
-  $("#feed").innerHTML=data.items.map(x=>'<article class="msg deleted">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">已删除</span><button class="button" style="padding:4px 8px;margin-left:auto" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看编辑历史</button></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+kbButtons(x)+'<div class="deleted-meta">deleted_at：'+(x.DeletedAt?new Date(x.DeletedAt*1000).toLocaleString():"未知")+' · 来源：'+esc(x.ChatTitle||x.ChatID)+' · 原始 message id：'+x.MessageID+'</div><div class="edit-history" hidden></div></div></article>').join("");
-  let pages=Math.max(1,Math.ceil(data.total/data.page_size));
-  $("#feed").insertAdjacentHTML("beforeend",`<div class="pager"><button class="button" ${data.page<=1?"disabled":""} onclick="state.page=${data.page-1};loadDeleted()">上一页</button><span class="muted">第 ${data.page} / ${pages} 页 · 共 ${data.total} 条</span><button class="button" ${data.page>=pages?"disabled":""} onclick="state.page=${data.page+1};loadDeleted()">下一页</button></div>`)
+  feedRender(data.items.map(x=>'<article class="msg deleted">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">已删除</span><button class="button xs ml-auto" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看编辑历史</button></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+kbButtons(x)+'<div class="deleted-meta">deleted_at：'+(x.DeletedAt?new Date(x.DeletedAt*1000).toLocaleString():"未知")+' · 来源：'+esc(x.ChatTitle||x.ChatID)+' · 原始 message id：'+x.MessageID+'</div><div class="edit-history" hidden></div></div></article>').join(""));
+  feedAttachPager(data,Math.max(1,Math.ceil((data.total||0)/(data.page_size||50))),"loadDeleted")
 }
 async function loadEdited(){
   $("#deletedBanner").style.display="none";
   let q=$("#q").value.trim(),page=state.page||1;
   let u="/api/edited?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"");
-  let data=await fetch(u).then(r=>r.json());
+  let data;
+  try{
+    if(!window.__feedAppend)showSkeleton(6);
+    data=await fetchJSON(u);
+  }catch(e){
+    window.__feedAppend=false;
+    showFeedError("编辑记录加载失败（"+e.message+"）","loadEdited()");
+    return
+  }
   renderEdited(data)
 }
 function renderEdited(data){
-  if(!data||!data.items||!data.items.length){$("#feed").innerHTML='<div class="empty">暂无编辑记录，本地档案中没有被编辑过的消息</div>';return}
-  $("#feed").innerHTML=data.items.map(item=>{
+  if(!data||!data.items||!data.items.length){window.__feedAppend=false;$("#feed").innerHTML=emptyHTML("暂无编辑记录","本地档案中没有被编辑过的消息");return}
+  feedRender(data.items.map(item=>{
     let x=item.message;
-    return '<article class="msg">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">编辑 '+item.edit_count+' 次</span></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+kbButtons(x)+'<div class="deleted-meta">来源：'+esc(x.ChatTitle||x.ChatID)+' · message id：'+x.MessageID+' · 原始时间：'+new Date(x.Date*1000).toLocaleString()+'</div><button class="button" style="padding:5px 9px;margin-top:8px" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看版本时间线</button><div class="edit-history" hidden></div></div></article>'
-  }).join("");
-  let pages=Math.max(1,Math.ceil(data.total/data.page_size));
-  $("#feed").insertAdjacentHTML("beforeend",'<div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+(data.page-1)+';loadEdited()">上一页</button><span class="muted">第 '+data.page+" / "+pages+" 页 · 共 "+data.total+' 条</span><button class="button" '+(data.page>=pages?"disabled":"")+' onclick="state.page='+(data.page+1)+';loadEdited()">下一页</button></div>')
+    return '<article class="msg">'+avatarTag(x)+'<div class="body"><div class="meta"><span class="name">'+esc(x.SenderName||x.ChatTitle||"Unknown")+'</span>'+(x.SenderUsername?'<span class="muted">@'+esc(x.SenderUsername)+'</span>':"")+'<span class="time">'+new Date(x.Date*1000).toLocaleString()+'</span><span class="pill">编辑 '+item.edit_count+' 次</span></div><div class="text">'+esc(x.Text||x.Caption)+'</div>'+asset(x)+kbButtons(x)+'<div class="deleted-meta">来源：'+esc(x.ChatTitle||x.ChatID)+' · message id：'+x.MessageID+' · 原始时间：'+new Date(x.Date*1000).toLocaleString()+'</div><button class="button xs mt-2" onclick="showEdits('+x.ChatID+','+x.MessageID+',this)">查看版本时间线</button><div class="edit-history" hidden></div></div></article>'
+  }).join(""));
+  feedAttachPager(data,Math.max(1,Math.ceil((data.total||0)/(data.page_size||50))),"loadEdited")
 }
 async function showEdits(chat,id,button){
   let box=button.closest(".body").querySelector(".edit-history");
@@ -228,20 +985,39 @@ async function showEdits(chat,id,button){
   let kind=state.view.slice(0,-1),page=state.page||1,q=$("#q").value.trim();
   let path="/media/"+state.view,u="/api/media?kind="+kind+"&page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(state.chat?"&chat="+state.chat:"");
   history.replaceState({}, "", path+(q?"?q="+encodeURIComponent(q)+"&page="+page:"?page="+page));
-  let data=await fetch(u).then(r=>r.json());renderMedia(data)
+  let data;
+  try{
+    if(!window.__feedAppend)showSkeleton(6);
+    data=await fetchJSON(u);
+  }catch(e){
+    window.__feedAppend=false;
+    showFeedError("媒体加载失败（"+e.message+"）","loadMedia()");
+    return
+  }
+  renderMedia(data)
 }
 function renderMedia(data){
   let labels={images:"图片",videos:"视频",files:"文件"},label=labels[state.view]||"媒体";
-  if(!data||!data.items||!data.items.length){$("#feed").innerHTML='<div class="empty">暂无'+label+'</div>';return}
+  if(!data||!data.items||!data.items.length){window.__feedAppend=false;$("#feed").innerHTML=emptyHTML("暂无"+label,"这个类型下还没有已归档的内容");return}
   let items=data.items;
-  $("#feed").innerHTML='<div class="media-grid">'+items.map((x,i)=>{
+  feedRender('<div class="media-grid">'+items.map((x,i)=>{
     let mime=(x.MediaMime||"").toLowerCase(),sha=x.MediaSHA256||"",thumb=x.ThumbnailPath?"/media/thumb/"+sha:"/media/"+sha;
     let ratio=(x.Width&&x.Height)?' style="aspect-ratio:'+Number(x.Width)+' / '+Number(x.Height)+'"':'';let poster=x.PreviewPath?'<img loading="lazy" class="poster" src="/media/preview/'+sha+'" alt="">':'';let visual=mime.startsWith("video/")?'<div class="media-video-placeholder'+(poster?" has-poster":"")+'">'+poster+'<span class="play-badge">▶</span>'+(poster?'':'<span>视频</span>')+'</div>':'<img loading="lazy" src="'+thumb+'"'+ratio+'>';
     // 同一文件被 bot 重发过 N 次：只显示一张，用角标说明另外 N-1 份在哪。
     let dup=(x.DupCount&&x.DupCount>1)?'<span class="dup-badge" title="同一文件在本库中出现了 '+x.DupCount+' 次，此处只显示最早上传的那条">×'+x.DupCount+'</span>':'';
-    return '<article class="media-card" onclick="openMedia('+i+')">'+visual+dup+'<div class="media-info"><div class="media-meta">'+esc(x.ChatTitle||x.ChatID)+' · '+new Date(x.Date*1000).toLocaleString()+'</div><div class="media-author">'+esc(x.SenderName||"Unknown")+(x.SenderUsername?" · @"+esc(x.SenderUsername):"")+'</div></div></article>'
-  }).join("")+'</div><div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+Math.max(1,data.page-1)+';loadMedia()">上一页</button><span class="muted">第 '+data.page+' 页 · 共 '+data.total+' 条</span><button class="button" '+(data.page>=Math.ceil(data.total/data.page_size)?"disabled":"")+' onclick="state.page='+Math.min(Math.max(1,Math.ceil(data.total/data.page_size)),data.page+1)+';loadMedia()">下一页</button></div>';
-  window.mediaItems=items
+    // 按 sha 定位而不是按页内下标：续接多页后 items 是拼接出来的，
+    // 页内下标不再等于全局下标，用 i 会打开错的文件。
+    return '<article class="media-card" onclick="openMediaBySha(\''+esc(sha)+'\')">'+visual+dup+'<div class="media-info"><div class="media-meta">'+esc(x.ChatTitle||x.ChatID)+' · '+new Date(x.Date*1000).toLocaleString()+'</div><div class="media-author">'+esc(x.SenderName||"Unknown")+(x.SenderUsername?" · @"+esc(x.SenderUsername):"")+'</div></div></article>'
+  }).join("")+'</div>');
+  // 续接时保留已经加载的几页，只把 mediaItems 往后追加。
+  if(window.__feedAppend&&Array.isArray(window.mediaItems))window.mediaItems=window.mediaItems.concat(items);
+  else window.mediaItems=items;
+  feedAttachPager(data,Math.ceil((data.total||0)/(data.page_size||50)),"loadMedia")
+}
+function openMediaBySha(sha){
+  if(!sha)return;
+  let list=window.mediaItems||[];
+  for(let i=0;i<list.length;i++){if((list[i].MediaSHA256||"")===sha){openMedia(i);return}}
 }
 function openMedia(i){
   let x=window.mediaItems&&window.mediaItems[i];if(!x)return;
@@ -255,18 +1031,28 @@ function openMedia(i){
   $("#lightbox").style.display="flex"
 }
 function openMessageMedia(src){$("#light").innerHTML='<video controls autoplay preload="metadata" src="'+src+'"></video>';$("#lightbox").style.display="flex"}function mediaStep(delta){let n=(window.mediaItems||[]).length;if(!n)return;window.mediaIndex=(window.mediaIndex+delta+n)%n;openMedia(window.mediaIndex)}
+// 会话过期时 /media/* 返回 401，元素的 error 事件不会带状态码，所以用一次
+// 轻量探针确认：只有 /api/auth/status 也 401 才提示，避免把「缩略图没生成」
+// 误报成「掉登录」。error 不冒泡，必须用捕获阶段。
+let sessionExpired=false,sessionProbing=false;
+function probeSession(){if(sessionExpired||sessionProbing)return;sessionProbing=true;fetch("/api/auth/status",{credentials:"same-origin"}).then(function(r){sessionProbing=false;if(r.status===401){sessionExpired=true;showSessionBanner()}}).catch(function(){sessionProbing=false})}
+function showSessionBanner(){if(document.getElementById("sessionBanner"))return;let d=document.createElement("div");d.id="sessionBanner";d.className="session-banner";d.innerHTML='<span>登录状态已失效，请重新登录。</span><a href="/login?next='+encodeURIComponent(location.pathname+location.search)+'">重新登录</a>';document.body.appendChild(d)}
+document.addEventListener("error",function(e){let t=e.target;if(!t||(t.tagName!=="VIDEO"&&t.tagName!=="IMG"))return;let s=t.currentSrc||t.src||"";if(s.indexOf("/media/")<0)return;if(t.tagName==="VIDEO"&&t.error&&t.error.code===4){toast("当前浏览器不支持该视频格式（多为 webm），可长按下载后观看");return}probeSession()},true)
 // The receive ledger view: what arrived, in number order, with the two actions
 // that matter per row — copy the local path, delete the item.
 function fmtSize(n){if(!n)return "—";let u=["B","KB","MB","GB","TB"],i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return (i?n.toFixed(1):n)+" "+u[i]}
 async function clickKb(rowid,index,btn){let old=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='点击中…'}try{let r=await fetch('/api/autoclick/click',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rowid:rowid,index:index})});let d={};try{d=await r.json()}catch(e){}if(!r.ok||d.error){toast('点击失败：'+(d.error||('HTTP '+r.status)))}else{toast(d.message||'已点击');setTimeout(function(){if(typeof loadFeed==='function')loadFeed();else location.reload()},3000)}}catch(e){toast('请求失败：'+e)}finally{if(btn){btn.disabled=false;btn.textContent=old}}}
-function toast(msg){let d=document.createElement("div");d.textContent=msg;d.style.cssText="position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:var(--fg,#111);color:var(--bg,#fff);padding:8px 14px;border-radius:8px;z-index:9999;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3)";document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
+// 位置交给 CSS 的 .toast：原来是内联 bottom:88px，而底栏实高是
+// 60px + env(safe-area-inset-bottom)（手势条机型约 94px），toast 直接被压在
+// 底栏下面看不见。
+function toast(msg){let d=document.createElement("div");d.className="toast";d.setAttribute("role","status");d.textContent=msg;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
 function serialRef(n){return "#"+String(n||0).padStart(6,"0")}
 async function copySerialPath(s){try{let d=await fetch("/api/serial?serial="+s).then(r=>r.json());if(!d.item||!d.item.HasFile){toast("该编号暂无本地文件");return}if(navigator.clipboard)navigator.clipboard.writeText(d.item.Path);toast(d.item.Path)}catch(e){toast("读取路径失败")}}
-async function purgeSerial(s){if(!confirm("删除 "+serialRef(s)+" 的媒体文件与消息？此操作不可撤销。"))return;try{let r=await fetch("/api/purge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({serial:s,confirm:true})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已删除 · 释放 "+fmtSize(d.bytes_freed||0));refresh()}catch(e){toast("删除请求失败")}}
+async function purgeSerial(s){if(!await askConfirm("删除 "+serialRef(s)+" 的媒体文件与消息？此操作不可撤销。",true))return;try{let r=await fetch("/api/purge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({serial:s,confirm:true})});let d=await r.json().catch(()=>({}));if(!r.ok){toast("删除失败: "+(d.error||r.status));return}toast("已删除 · 释放 "+fmtSize(d.bytes_freed||0));refresh()}catch(e){toast("删除请求失败")}}
 function materialChip(st,v,label){return '<button class="button" style="'+(st===v?'font-weight:700':'opacity:.6')+'" onclick="setMaterialStatus(\''+v+'\')">'+label+'</button>'}
 function setMaterialStatus(v){state.materialStatus=v;state.page=1;loadMaterials()}
 async function refreshMaterials(rebuild){
-  if(rebuild&&!confirm("全量重建会清空材料层再重新折叠，消息与文件都不受影响。继续？"))return;
+  if(rebuild&&!await askConfirm("全量重建会清空材料层再重新折叠，消息与文件都不受影响。继续？"))return;
   toast(rebuild?"正在重建材料层…":"正在刷新材料层…");
   try{
     let r=await fetch("/api/material/refresh",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({rebuild:!!rebuild})});
@@ -285,68 +1071,84 @@ async function loadMaterials(){
   if(q)url+="&q="+encodeURIComponent(q);
   if(state.chat)url+="&chat="+state.chat;
   let d=null;try{d=await fetch(url).then(r=>r.json())}catch(e){}
-  if(!d||!d.items){$("#feed").innerHTML='<div class="empty">材料层暂不可用（归档服务未就绪）</div>';return}
+  if(!d||!d.items){$("#feed").innerHTML=emptyHTML("材料层暂不可用","归档服务未就绪，稍后重试");return}
   let s=d.stats||{};
-  let head='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 0 14px"><span style="font-size:13px;color:var(--muted)">材料 <b>'+(s.total||0)+'</b> · 去重后 <b>'+(s.active||0)+'</b> · 重复 <b>'+(s.duplicates||0)+'</b> · 含媒体 '+(s.with_media||0)+'</span><span style="display:flex;flex-wrap:wrap;gap:6px">'+materialChip(st,"active","去重视图")+materialChip(st,"all","全部")+materialChip(st,"duplicate","仅重复")+'<button class="button" onclick="refreshMaterials(false)" title="增量刷新：把新收到的消息折叠进材料层">↻ 刷新</button><button class="button" onclick="refreshMaterials(true)" title="全量重建（派生数据，消息不受影响）">重建</button></span></div>';
-  if(!d.items.length){$("#feed").innerHTML=head+'<div class="empty">该筛选下没有材料 · 点「↻ 刷新」把已归档消息折叠进来</div>';return}
+  let head='<div class="toolbar"><span class="meta-sm">材料 <b>'+(s.total||0)+'</b> · 去重后 <b>'+(s.active||0)+'</b> · 重复 <b>'+(s.duplicates||0)+'</b> · 含媒体 '+(s.with_media||0)+'</span><span class="toolbar-group">'+materialChip(st,"active","去重视图")+materialChip(st,"all","全部")+materialChip(st,"duplicate","仅重复")+'<button class="button" onclick="refreshMaterials(false)" title="增量刷新：把新收到的消息折叠进材料层">↻ 刷新</button><button class="button" onclick="refreshMaterials(true)" title="全量重建（派生数据，消息不受影响）">重建</button></span></div>';
+  if(!d.items.length){$("#feed").innerHTML=head+emptyHTML("该筛选下没有材料","点「↻ 刷新」把已归档消息折叠进来",{label:"立即刷新",fn:"refreshMaterials(false)"});return}
   let rows=d.items.map(function(x){
     let t=x.Date?new Date(x.Date*1000).toLocaleString():"—";
     let body=(x.Title||x.Caption||x.Body||"").replace(/\s+/g," ").slice(0,140);
     let dup=x.Status==="duplicate";
-    let kind='<b>'+esc(x.Kind)+'</b>'+(x.MediaCount>1?'<div style="font-size:11px;color:var(--muted)">'+x.MediaCount+' 项</div>':'');
+    let kind='<b>'+esc(x.Kind)+'</b>'+(x.MediaCount>1?'<div class="meta-xs">'+x.MediaCount+' 项</div>':'');
     let badge=dup?'<span class="chip" title="同内容最早出现在别处，这里是重复份">重复</span>':'';
-    return '<tr style="border-top:1px solid var(--line,#e5e5e5);'+(dup?'opacity:.55':'')+'"><td style="padding:6px 8px;white-space:nowrap">'+kind+'</td><td style="padding:6px 8px;max-width:560px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(body)+'">'+esc(body||"—")+'</div></td><td style="padding:6px 8px;white-space:nowrap">'+(x.Serial?serialRef(x.Serial):"—")+'</td><td style="padding:6px 8px">'+esc(x.ChatTitle||x.ChatUsername||x.ChatID)+'</td><td style="padding:6px 8px;white-space:nowrap">'+t+'</td><td style="padding:6px 8px;white-space:nowrap">'+badge+'</td><td style="padding:6px 8px;white-space:nowrap"><button class="button" onclick="location.href=\'/messages?focus='+x.AnchorRowID+'\'">定位</button></td></tr>'
+    return '<tr class="divider"'+(dup?' style="opacity:.55"':'')+'><td class="nowrap">'+kind+'</td><td class="cell-wide"><div class="truncate" title="'+esc(body)+'">'+esc(body||"—")+'</div></td><td class="nowrap">'+(x.Serial?serialRef(x.Serial):"—")+'</td><td>'+esc(x.ChatTitle||x.ChatUsername||x.ChatID)+'</td><td class="nowrap">'+t+'</td><td class="nowrap">'+badge+'</td><td class="nowrap"><button class="button" onclick="location.href=\'/messages?focus='+x.AnchorRowID+'\'">定位</button></td></tr>'
   }).join("");
   let ps=d.page_size||50;
   let pages=Math.max(1,Math.ceil((d.total||0)/ps));
-  let pager='<div style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 0"><button class="button" '+(page<=1?'disabled':'')+' onclick="state.page='+Math.max(1,page-1)+';loadMaterials()">上一页</button><span style="font-size:12px;color:var(--muted)">第 '+page+' / '+pages+' 页 · 共 '+(d.total||0)+' 条</span><button class="button" '+(page>=pages?'disabled':'')+' onclick="state.page='+(page+1)+';loadMaterials()">下一页</button></div>';
-  $("#feed").innerHTML=head+'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--muted);font-size:12px"><th style="padding:6px 8px">类型</th><th style="padding:6px 8px">内容</th><th style="padding:6px 8px">编号</th><th style="padding:6px 8px">来源</th><th style="padding:6px 8px">时间</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+pager;
+  let pager=pagerHTML(page,pages,d.total,"loadMaterials");
+  $("#feed").innerHTML=head+'<div class="table-scroll"><table class="data-table"><thead><tr><th>类型</th><th>内容</th><th>编号</th><th>来源</th><th>时间</th><th>状态</th><th>操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+pager;
 }
 async function loadInbox(){
   $("#deletedBanner").style.display="none";
   let d=null;try{d=await fetch("/api/serials?limit=100").then(r=>r.json())}catch(e){}
-  if(!d||!d.items){$("#feed").innerHTML='<div class="empty">编号台账暂不可用（归档服务未就绪）</div>';return}
+  if(!d||!d.items){$("#feed").innerHTML=emptyHTML("编号台账暂不可用","归档服务未就绪，稍后重试");return}
   let sum=d.summary||{};
-  let head='<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:10px 0 14px"><span style="font-size:13px;color:var(--muted)">共 <b>'+(sum.total||0)+'</b> 条 · 最高 '+serialRef(sum.max)+' · 待下载 '+(sum.pending||0)+' · 已完成 '+(sum.completed||0)+'</span><span style="display:flex;gap:6px"><button class="button" onclick="doExport(\'csv\')" title="导出编号台账 CSV">⤓ CSV</button><button class="button" onclick="doExport(\'json\')" title="导出编号台账 JSON">⤓ JSON</button></span></div>';
-  if(!d.items.length){$("#feed").innerHTML=head+'<div class="empty">暂无编号记录 · 先运行 tdl archive watch @&lt;bot&gt;</div>';return}
+  let head='<div class="toolbar"><span class="meta-sm">共 <b>'+(sum.total||0)+'</b> 条 · 最高 '+serialRef(sum.max)+' · 待下载 '+(sum.pending||0)+' · 已完成 '+(sum.completed||0)+'</span><span class="toolbar-group"><button class="button" onclick="doExport(\'csv\')" title="导出编号台账 CSV">⤓ CSV</button><button class="button" onclick="doExport(\'json\')" title="导出编号台账 JSON">⤓ JSON</button></span></div>';
+  if(!d.items.length){$("#feed").innerHTML=head+emptyHTML("暂无编号记录","先运行 tdl archive watch @<bot>",{label:"添加监控源",fn:"openAdd()"});return}
   let rows=d.items.map(function(x){
     let t=x.Date?new Date(x.Date*1000).toLocaleString():"—";
-    let ops='<button class="button" onclick="copySerialPath('+x.Serial+')" title="复制本地文件路径">路径</button><button class="button" onclick="purgeSerial('+x.Serial+')" title="删除该编号的媒体与消息">删除</button>';
-    return '<tr style="border-top:1px solid var(--line,#e5e5e5)"><td style="padding:6px 8px;white-space:nowrap"><b>'+serialRef(x.Serial)+'</b></td><td style="padding:6px 8px;white-space:nowrap">'+t+'</td><td style="padding:6px 8px">'+(x.Out?"→":"←")+'</td><td style="padding:6px 8px">'+esc(x.Kind)+'</td><td style="padding:6px 8px;white-space:nowrap">'+fmtSize(x.Size)+'</td><td style="padding:6px 8px">'+esc(x.Status)+'</td><td style="padding:6px 8px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(x.FileName||"")+'">'+esc(x.FileName||"—")+'</td><td style="padding:6px 8px">'+esc(x.ChatLabel||x.ChatID)+'</td><td style="padding:6px 8px;white-space:nowrap;display:flex;gap:4px">'+ops+'</td></tr>'
+    let ops='<button class="button xs" onclick="copySerialPath('+x.Serial+')" title="复制本地文件路径">路径</button><button class="button xs" onclick="purgeSerial('+x.Serial+')" title="删除该编号的媒体与消息">删除</button>';
+    return '<tr class="divider"><td class="nowrap"><b>'+serialRef(x.Serial)+'</b></td><td class="nowrap">'+t+'</td><td>'+(x.Out?"→":"←")+'</td><td>'+esc(x.Kind)+'</td><td class="nowrap">'+fmtSize(x.Size)+'</td><td>'+esc(x.Status)+'</td><td class="cell-mid truncate" title="'+esc(x.FileName||"")+'">'+esc(x.FileName||"—")+'</td><td class="nowrap">'+esc(x.ChatLabel||x.ChatID)+'</td><td class="nowrap flex-row-4">'+ops+'</td></tr>'
   }).join("");
-  $("#feed").innerHTML=head+'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="text-align:left;color:var(--muted);font-size:12px"><th style="padding:6px 8px">编号</th><th style="padding:6px 8px">时间</th><th style="padding:6px 8px">向</th><th style="padding:6px 8px">类型</th><th style="padding:6px 8px">大小</th><th style="padding:6px 8px">状态</th><th style="padding:6px 8px">文件</th><th style="padding:6px 8px">来源</th><th style="padding:6px 8px">操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  $("#feed").innerHTML=head+'<div class="table-scroll"><table class="data-table"><thead><tr><th>编号</th><th>时间</th><th>向</th><th>类型</th><th>大小</th><th>状态</th><th>文件</th><th>来源</th><th>操作</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 async function loadLinks(){
   $("#deletedBanner").style.display="none";
   let params=new URLSearchParams(location.search),urlQ=params.get("q");if(urlQ!==null)$("#q").value=urlQ;
   let q=$("#q").value.trim(),domain=params.get("domain")||"",page=state.page||1;
   let u="/api/links?page="+page+"&page_size=50"+(q?"&q="+encodeURIComponent(q):"")+(domain?"&domain="+encodeURIComponent(domain):"");
-  let data=await fetch(u).then(r=>r.json()),domains=await fetch("/api/link_domains?limit=20"+(q?"&q="+encodeURIComponent(q):"")).then(r=>r.json());
+  let data,domains={items:[]};
+  try{
+    if(!window.__feedAppend)showSkeleton(6);
+    data=await fetchJSON(u);
+    domains=await fetch("/api/link_domains?limit=20"+(q?"&q="+encodeURIComponent(q):"")).then(r=>r.json());
+  }catch(e){
+    window.__feedAppend=false;
+    showFeedError("链接列表加载失败（"+e.message+"）","loadLinks()");
+    return
+  }
   renderLinks(data,domains.items||[],domain)
 }
 function renderLinks(data,domains,domain){
-  let top='<div class="link-domains"><button class="link-domain '+(!domain?"active":"")+'" onclick="setLinkDomain(\'\')">全部</button>'+domains.map(x=>'<button class="link-domain '+(domain===x.domain?"active":"")+'" onclick="setLinkDomain(\''+encodeURIComponent(x.domain)+'\')">'+esc(x.domain)+' · '+x.count+'</button>').join("")+'</div>';
-  if(!data||!data.items||!data.items.length){$("#feed").innerHTML=top+'<div class="empty">暂无链接</div>';return}
-  $("#feed").innerHTML=top+'<div class="link-list">'+data.items.map(x=>'<article class="link-card"><div class="link-row"><span class="link-favicon">'+esc((x.Domain||x.URL||"?").slice(0,1).toUpperCase())+'</span><div class="link-main"><a class="link-url" href="'+safeUrl(esc(x.URL))+'" title="'+esc(x.URL)+'" target="_blank" rel="noreferrer">'+esc(x.URL)+'</a><div class="link-snippet">'+esc(x.Text||"")+'</div><div class="link-footer"><span class="pill">'+esc(x.Domain||"")+'</span><span>'+esc(x.ChatTitle||x.ChatID)+'</span><span>· '+new Date(x.Date*1000).toLocaleString()+'</span><span>· '+esc(x.SenderName||"Unknown")+(x.SenderUsername?" @"+esc(x.SenderUsername):"")+'</span><a class="button" href="/messages?focus='+x.MessageRowID+'">跳转到消息</a></div></div></div></article>').join("")+'</div><div class="pager"><button class="button" '+(data.page<=1?"disabled":"")+' onclick="state.page='+Math.max(1,data.page-1)+';loadLinks()">上一页</button><span class="muted">第 '+data.page+' 页 · 共 '+data.total+' 条</span><button class="button" '+(data.page>=Math.ceil(data.total/data.page_size)?"disabled":"")+' onclick="state.page='+Math.min(Math.max(1,Math.ceil(data.total/data.page_size)),data.page+1)+';loadLinks()">下一页</button></div>'
+  // 域名筛选条只在第一页渲染一次，续接时不再重复插入。
+  let top=window.__feedAppend?'':'<div class="link-domains"><button class="link-domain '+(!domain?"active":"")+'" onclick="setLinkDomain(\'\')">全部</button>'+domains.map(x=>'<button class="link-domain '+(domain===x.domain?"active":"")+'" onclick="setLinkDomain(\''+encodeURIComponent(x.domain)+'\')">'+esc(x.domain)+' · '+x.count+'</button>').join("")+'</div>';
+  if(!data||!data.items||!data.items.length){window.__feedAppend=false;$("#feed").innerHTML=top+emptyHTML("暂无链接","消息里出现的 URL 会自动索引到这里");return}
+  feedRender(top+'<div class="link-list">'+data.items.map(x=>'<article class="link-card"><div class="link-row"><span class="link-favicon">'+esc((x.Domain||x.URL||"?").slice(0,1).toUpperCase())+'</span><div class="link-main"><a class="link-url" href="'+safeUrl(esc(x.URL))+'" title="'+esc(x.URL)+'" target="_blank" rel="noreferrer">'+esc(x.URL)+'</a><div class="link-snippet">'+esc(x.Text||"")+'</div><div class="link-footer"><span class="pill">'+esc(x.Domain||"")+'</span><span>'+esc(x.ChatTitle||x.ChatID)+'</span><span>· '+new Date(x.Date*1000).toLocaleString()+'</span><span>· '+esc(x.SenderName||"Unknown")+(x.SenderUsername?" @"+esc(x.SenderUsername):"")+'</span><a class="button" href="/messages?focus='+x.MessageRowID+'">跳转到消息</a></div></div></div></article>').join("")+'</div>');
+  feedAttachPager(data,Math.max(1,Math.ceil((data.total||0)/(data.page_size||50))),"loadLinks")
 }
 function setLinkDomain(domain){domain=domain?decodeURIComponent(domain):"";state.page=1;history.pushState({}, "", "/links"+(domain?"?domain="+encodeURIComponent(domain):""));loadLinks()}
-async function doSearch(){let q=$("#q").value.trim();state.page=1;if(state.view==="messages"){history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));return loadMessages()}if(state.view==="images"||state.view==="videos"||state.view==="files"){return loadMedia()}if(state.view==="links"){history.replaceState({}, "", "/links"+(q?"?q="+encodeURIComponent(q):""));return loadLinks()}if(state.view==="edits"){return loadEdited()}if(state.view==="deleted"){return loadDeleted()}refresh()}function pick(id,el){state.chat=id;state.topic=0;document.querySelectorAll(".source").forEach(x=>x.classList.remove("active"));el.classList.add("active");refresh()}function showImage(src){event.stopPropagation();$("#light").innerHTML='<img src="'+src+'">';$("#lightbox").style.display="flex"}function closeLight(){$("#lightbox").style.display="none";$("#light").innerHTML=""}document.querySelectorAll(".nav button").forEach(b=>{if(b.dataset.view===state.view)b.classList.add("active");else b.classList.remove("active");b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");if(b.dataset.view==="dest"){setRightPanel("dest");if(window.matchMedia("(max-width:1000px)").matches)document.body.classList.add("show-right");return}state.view=b.dataset.view;state.page=1;let paths={messages:"/messages",images:"/media/images",videos:"/media/videos",files:"/media/files",links:"/links",deleted:"/deleted",edits:"/edits",storage:"/storage",inbox:"/inbox",materials:"/materials"};if(paths[state.view])history.pushState({}, "", paths[state.view]);refresh()}});document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLight();document.body.classList.remove("show-right")}if(e.key==="Enter"&&document.activeElement===$("#q"))doSearch();if(e.key==="/"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();$("#q").focus()}if(e.key==="ArrowLeft"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(-1);if(e.key==="ArrowRight"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(1)});let loginTimer=null;
+async function doSearch(){if(isPhone())closeMobileSearch();let q=$("#q").value.trim();state.page=1;if(state.view==="messages"){history.replaceState({}, "", "/messages"+(q?"?q="+encodeURIComponent(q):""));return loadMessages()}if(state.view==="images"||state.view==="videos"||state.view==="files"){return loadMedia()}if(state.view==="links"){history.replaceState({}, "", "/links"+(q?"?q="+encodeURIComponent(q):""));return loadLinks()}if(state.view==="edits"){return loadEdited()}if(state.view==="deleted"){return loadDeleted()}refresh()}function pick(id,el){state.chat=id;state.topic=0;document.querySelectorAll(".source").forEach(x=>x.classList.remove("active"));el.classList.add("active");refresh()}function showImage(src){event.stopPropagation();$("#light").innerHTML='<img src="'+src+'">';$("#lightbox").style.display="flex"}function closeLight(){$("#lightbox").style.display="none";$("#light").innerHTML=""}document.querySelectorAll(".nav button").forEach(b=>{if(b.dataset.view===state.view)b.classList.add("active");else b.classList.remove("active");b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");if(b.dataset.view==="dest"){setRightPanel("dest");if(window.matchMedia("(max-width:1000px)").matches)document.body.classList.add("show-right");return}state.view=b.dataset.view;state.page=1;let paths={messages:"/messages",images:"/media/images",videos:"/media/videos",files:"/media/files",links:"/links",deleted:"/deleted",edits:"/edits",storage:"/storage",inbox:"/inbox",materials:"/materials"};if(paths[state.view])history.replaceState({}, "", paths[state.view]);refresh()}});document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeLight();document.body.classList.remove("show-right")}if(e.key==="Enter"&&document.activeElement===$("#q"))doSearch();if(e.key==="/"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){e.preventDefault();$("#q").focus()}if(e.key==="ArrowLeft"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(-1);if(e.key==="ArrowRight"&&state.view.match(/^(images|videos|files)$/)&&$("#lightbox").style.display==="flex")mediaStep(1)});let loginTimer=null;
 $("#qrImg").onload=function(){this.dataset.ok="1";this.style.visibility="visible";let st=$("#qrStatus");st.textContent="等待扫码…（二维码约 30 秒自动刷新）";st.className="qr-status"};$("#qrImg").onerror=function(){this.dataset.ok="";this.style.visibility="hidden"};
-async function loadAuth(){try{let a=await fetch("/api/auth/status").then(r=>r.json());let el=$("#acct");
- if(!a.managed){el.className="chip warn";el.textContent="⚠ 只读模式";el.title=a.hint||"在 config.yaml 配置 telegram.app-id/app-hash 后重启 serve 即可启用网页登录与管理";return}
- if(a.authorized){el.className="chip ok";el.textContent="● "+(a.user?"@"+(a.user.username||a.user.name||a.user.id):"已登录");el.title="已登录（serve 进程同时在进行实时归档），点击查看说明"}
- else{el.className="chip err";el.textContent="● 未登录 · 点击管理";el.title=a.error||"点击扫码登录 Telegram 账号"}}catch(e){let el=$("#acct");el.className="chip err";el.textContent="● 状态未知"}}
+let authRetry=0,authWas=null;
+function syncAcctState(v){var m=$("#mAcctState");if(m)m.textContent=v}
+async function loadAuth(){try{let a=await fetch("/api/auth/status").then(r=>r.json());window.__auth=a;let el=$("#acct");
+ if(!a.managed){authRetry=0;el.className="chip warn";el.textContent="⚠ 只读模式";el.title=a.hint||"在 config.yaml 配置 telegram.app-id/app-hash 后重启 serve 即可启用网页登录与管理";syncAcctState("只读模式");return}
+ if(a.authorized){authRetry=0;let flipped=authWas!==true;authWas=true;el.className="chip ok";el.textContent="● "+(a.user?"@"+(a.user.username||a.user.name||a.user.id):"已登录");el.title="已登录（serve 进程同时在进行实时归档），点击查看说明";syncAcctState(a.user?"@"+(a.user.username||a.user.name||a.user.id):"已登录");if(flipped)setTimeout(refresh,0);return}
+ if(a.state==="no_account"){authRetry=0;el.className="chip warn";el.textContent="＋ 添加账号";el.title=a.hint||"还没有账号，点开新建一个并扫码登录";syncAcctState("添加账号");return}
+ if(a.state==="connecting"){el.className="chip warn";el.textContent="● 连接中…";el.title="正在校验 Telegram 会话，稍候自动刷新（点击可手动管理账号）";syncAcctState("连接中…");if(authRetry++<40)setTimeout(loadAuth,1500);return}
+ authRetry=0;el.className="chip err";el.textContent="● 未登录 · 点击管理";el.title=a.error||"点击扫码登录 Telegram 账号";syncAcctState("未登录")
+}catch(e){let el=$("#acct");el.className="chip err";el.textContent="● 状态未知";if(authRetry++<40)setTimeout(loadAuth,2000);syncAcctState("状态未知")}}
 let accountsCache=[];
 function acctClick(){openAccounts()}
-function closeAccounts(){$("#accountsModal").style.display="none"}
-async function openAccounts(){$("#accountsModal").style.display="flex";$("#accList").innerHTML='<div class="muted" style="padding:10px">加载中…</div>';await loadAccounts()}
+function closeAccounts(){goBackPage()}
+async function openAccounts(){$("#accList").innerHTML='<div class="muted pad-3">加载中…</div>';openPage("accounts")}
 async function loadAccounts(){
  let r=await fetch("/api/accounts");
- if(!r.ok){$("#accList").innerHTML='<div class="qr-status err" style="padding:10px">'+esc(await r.text())+'</div>';return}
+ if(!r.ok){$("#accList").innerHTML='<div class="qr-status err pad-3">'+esc(await r.text())+'</div>';return}
  let a=await r.json();
- if(!a.managed){$("#accList").innerHTML='<div class="muted" style="padding:10px">当前为只读模式，未启用账号管理</div>';return}
+ if(!a.managed){$("#accList").innerHTML='<div class="muted pad-3">当前为只读模式，未启用账号管理</div>';return}
  accountsCache=a.accounts||[];
- if(!accountsCache.length){$("#accList").innerHTML='<div class="muted" style="padding:10px">还没有账号，点下方「添加账号」新建一个</div>';return}
+ if(!accountsCache.length){$("#accList").innerHTML='<div class="muted pad-3">还没有账号，点下方「添加账号」新建一个</div>';return}
  $("#accList").innerHTML=accountsCache.map(x=>{
   let badge;
   if(x.active){badge=x.authorized?'<span class="chip ok">● 已登录</span>':(x.has_session?'<span class="chip warn">● 待验证</span>':'<span class="chip err">● 未登录</span>')}
@@ -363,77 +1165,179 @@ async function loadAccounts(){
 }
 async function switchAccount(id){
  let r=await fetch("/api/accounts/"+encodeURIComponent(id)+"/switch",{method:"POST"});
- if(!r.ok){alert(await r.text());return}
+ if(!r.ok){toast(await r.text());return}
  await loadAccounts();loadAuth();refresh();
 }
 async function logoutAccount(id){
  let a=accountsCache.find(x=>x.id===id)||{};
- if(!confirm("退出账号「"+(a.name||id)+"」？\n\n会删除服务器上保存的 Telegram 登录状态，已归档的消息不会被删除。"))return;
+ if(!await askConfirm("退出账号「"+(a.name||id)+"」？\n\n会删除服务器上保存的 Telegram 登录状态，已归档的消息不会被删除。"))return;
  let r=await fetch("/api/accounts/"+encodeURIComponent(id)+"/logout",{method:"POST"});
- if(!r.ok){alert(await r.text());return}
+ if(!r.ok){toast(await r.text());return}
  await loadAccounts();loadAuth();
  if(a.active)openLogin();
 }
 async function renameAccount(id){
  let cur=(accountsCache.find(x=>x.id===id)||{}).name||"";
- let name=prompt("账号名称",cur);
+ let name=await askText("账号名称",cur);
  if(name===null)return;
  let r=await fetch("/api/accounts/"+encodeURIComponent(id)+"/rename",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name})});
- if(!r.ok){alert(await r.text());return}
+ if(!r.ok){toast(await r.text());return}
  await loadAccounts();
 }
 async function removeAccount(id){
  let a=accountsCache.find(x=>x.id===id)||{};
- if(!confirm("删除账号「"+(a.name||id)+"」？\n\n会退出登录并从列表移除。归档数据默认保留在服务器上。"))return;
+ if(!await askConfirm("删除账号「"+(a.name||id)+"」？\n\n会退出登录并从列表移除。归档数据默认保留在服务器上。",true))return;
  let r=await fetch("/api/accounts/"+encodeURIComponent(id),{method:"DELETE"});
- if(!r.ok){alert(await r.text());return}
+ if(!r.ok){toast(await r.text());return}
  await loadAccounts();loadAuth();refresh();
 }
 async function addAccount(){
  let name=$("#accName").value.trim();
  let r=await fetch("/api/accounts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name})});
- if(!r.ok){alert(await r.text());return}
+ if(!r.ok){toast(await r.text());return}
  $("#accName").value="";
  await loadAccounts();loadAuth();
  openLogin();
 }
-async function openLogin(){$("#loginModal").style.display="flex";$("#qrImg").dataset.ok="";$("#qrImg").src="";$("#qrImg").style.visibility="hidden";$("#pwdRow").hidden=true;$("#qrStatus").textContent="正在生成二维码…";$("#qrStatus").className="qr-status";
+async function openLogin(){try{await fetch("/api/login/qr/cancel",{method:"POST"})}catch(e){}loginPaneCur="";resetLoginUI();$("#loginModal").style.display="flex";await loginPane("qr")}
+function resetLoginUI(){$("#qrImg").dataset.ok="";$("#qrImg").src="";$("#qrImg").style.visibility="hidden";$("#pwdRow").hidden=true;$("#codeRow").hidden=true;$("#phoneSendBtn").hidden=false;$("#codeSubmitBtn").hidden=true;$("#phoneInput").value="";$("#codeInput").value="";$("#sessionInput").value="";$("#qrStatus").textContent="";$("#qrStatus").className="qr-status"}
+let loginPaneCur="";
+async function loginPane(tab){
+ $("#paneQR").hidden=tab!=="qr";$("#panePhone").hidden=tab!=="phone";$("#paneSession").hidden=tab!=="session";
+ document.querySelectorAll(".login-tab").forEach(b=>b.classList.toggle("active",b.dataset.pane===tab));
+ stopLoginTimer();
+ if(loginPaneCur==="qr"&&tab!=="qr"){try{await fetch("/api/login/qr/cancel",{method:"POST"})}catch(e){}}
+ loginPaneCur=tab;
+ if(tab==="qr")await startQR();
+ else if(tab==="phone"){$("#qrStatus").textContent="";$("#qrStatus").className="qr-status";$("#phoneInput").focus()}
+ else $("#sessionInput").focus();
+}
+async function startQR(){
+ $("#qrStatus").textContent="正在生成二维码…";$("#qrStatus").className="qr-status";
  let r=await fetch("/api/login/qr/start",{method:"POST"});
  if(!r.ok){let t=await r.text();$("#qrStatus").textContent="✗ "+t;$("#qrStatus").className="qr-status err";return}
- stopLoginTimer();loginTimer=setInterval(pollLoginStep,2000)}
+ let img=$("#qrImg");img.dataset.ok="";img.src=qrSrc();img.style.visibility="";
+ stopLoginTimer();loginTimer=setInterval(pollLoginStep,2000);
+}
 function qrSrc(){return "/api/login/qr/image?t="+Date.now()}
-async function pollLoginStep(){let s=await fetch("/api/login/qr/status").then(r=>r.json()).catch(()=>null);if(!s)return;let st=$("#qrStatus");
- if(s.qr==="pending"){let img=$("#qrImg");if(!img.dataset.ok)img.src=qrSrc()}
- else if(s.qr==="password_needed"){st.textContent="需要两步验证（2FA）云密码";st.className="qr-status";$("#qrImg").style.visibility="hidden";$("#pwdRow").hidden=false;$("#pwdInput").focus()}
- else if(s.qr==="authorized"||s.authorized){st.textContent="✓ 登录成功"+(s.user?"："+(s.user.username?"@"+s.user.username:s.user.name):"");st.className="qr-status ok";stopLoginTimer();setTimeout(()=>{closeLogin();load()},1200)}
- else if(s.qr==="error"){st.textContent="✗ "+(s.error||"登录失败");st.className="qr-status err";$("#qrImg").style.visibility="hidden";stopLoginTimer()}
- else if(s.qr==="idle"&&$("#loginModal").style.display==="flex"&&$("#qrStatus").className.indexOf("ok")<0){st.textContent=s.error?"✗ "+s.error:"✗ 登录流程已结束，请重新打开";st.className="qr-status err";stopLoginTimer()}}
+async function pollLoginStep(){
+ let s=await fetch("/api/login/qr/status").then(r=>r.json()).catch(()=>null);if(!s)return;
+ let st=$("#qrStatus"),kind=s.kind||"qr";
+ if(s.qr==="password_needed"){
+   st.textContent="需要两步验证（2FA）云密码";st.className="qr-status";
+   $("#qrImg").style.visibility="hidden";$("#codeRow").hidden=true;
+   $("#phoneSendBtn").hidden=true;$("#codeSubmitBtn").hidden=true;
+   $("#pwdRow").hidden=false;$("#pwdInput").focus();
+   return;
+ }
+ $("#pwdRow").hidden=true;
+ if(s.qr==="code_sent"){
+   $("#qrImg").style.visibility="hidden";$("#codeRow").hidden=false;
+   $("#phoneSendBtn").hidden=true;$("#codeSubmitBtn").hidden=false;
+   if(s.error){st.textContent="✗ "+s.error;st.className="qr-status err"}
+   else{st.textContent="验证码已发送"+(s.phone?"到 "+s.phone:"")+"，请输入";st.className="qr-status"}
+   if(document.activeElement!==$("#codeInput"))$("#codeInput").focus();
+ }
+ else if(s.qr==="pending"){
+   if(kind!=="qr"){return}
+   let img=$("#qrImg");if(!img.dataset.ok)img.src=qrSrc();
+   $("#qrImg").style.visibility="";
+ }
+ else if(s.qr==="authorized"||s.authorized){
+   st.textContent="✓ 登录成功"+(s.user?"："+(s.user.username?"@"+s.user.username:s.user.name):"");
+   st.className="qr-status ok";stopLoginTimer();
+   setTimeout(()=>{closeLogin();load()},1200);
+ }
+ else if(s.qr==="error"){
+   st.textContent="✗ "+(s.error||"登录失败");st.className="qr-status err";
+   $("#qrImg").style.visibility="hidden";stopLoginTimer();
+ }
+ else if(s.qr==="idle"&&$("#loginModal").style.display==="flex"&&st.className.indexOf("ok")<0){
+   st.textContent=s.error?"✗ "+s.error:"✗ 登录流程已结束，请重新打开";st.className="qr-status err";stopLoginTimer();
+ }
+}
 function stopLoginTimer(){if(loginTimer){clearInterval(loginTimer);loginTimer=null}}
 async function submitPwd(){let p=$("#pwdInput").value;if(!p)return;let r=await fetch("/api/login/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:p})});
  if(!r.ok){$("#qrStatus").textContent=await r.text();$("#qrStatus").className="qr-status err"}else{$("#pwdRow").hidden=true;$("#qrStatus").textContent="验证密码中…"}}
+async function phoneSend(){
+ let phone=$("#phoneInput").value.trim();
+ if(!phone){$("#qrStatus").textContent="✗ 请填写手机号";$("#qrStatus").className="qr-status err";return}
+ $("#qrStatus").textContent="正在发送验证码…";$("#qrStatus").className="qr-status";
+ let r=await fetch("/api/login/phone/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:phone})});
+ if(!r.ok){let t=await r.text();$("#qrStatus").textContent="✗ "+t;$("#qrStatus").className="qr-status err";return}
+ $("#codeRow").hidden=false;$("#phoneSendBtn").hidden=true;$("#codeSubmitBtn").hidden=false;$("#codeInput").focus();
+ $("#qrStatus").textContent="验证码已发送，请查收";$("#qrStatus").className="qr-status";
+ stopLoginTimer();loginTimer=setInterval(pollLoginStep,1500);
+}
+async function phoneSubmitCode(){
+ let code=$("#codeInput").value.trim();
+ if(!code){$("#qrStatus").textContent="✗ 请填写验证码";$("#qrStatus").className="qr-status err";return}
+ $("#qrStatus").textContent="正在验证…";$("#qrStatus").className="qr-status";
+ let r=await fetch("/api/login/phone/code",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:code})});
+ if(!r.ok){let t=await r.text();$("#qrStatus").textContent="✗ "+t;$("#qrStatus").className="qr-status err";return}
+ $("#codeInput").value="";
+}
+async function sessionImport(){
+ let sess=$("#sessionInput").value.trim();
+ if(!sess){$("#qrStatus").textContent="✗ 请粘贴 session 字符串";$("#qrStatus").className="qr-status err";return}
+ $("#qrStatus").textContent="正在导入并连接…";$("#qrStatus").className="qr-status";
+ let r=await fetch("/api/login/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session:sess})});
+ if(!r.ok){let t=await r.text();$("#qrStatus").textContent="✗ "+t;$("#qrStatus").className="qr-status err";return}
+ $("#sessionInput").value="";
+ $("#qrStatus").textContent="✓ 已导入，正在连接…";$("#qrStatus").className="qr-status ok";
+ stopLoginTimer();loginTimer=setInterval(pollLoginStep,2000);
+}
 async function cancelQR(){try{await fetch("/api/login/qr/cancel",{method:"POST"})}catch(e){}closeLogin()}
-function closeLogin(){$("#loginModal").style.display="none";$("#pwdRow").hidden=true;$("#qrImg").style.display="";stopLoginTimer();loadAuth()}
-function openAdd(){$("#addErr").textContent="";$("#addTarget").value="";$("#addSince").value="";$("#addLimit").value=1000;$("#addDownload").checked=true;$("#addKeywords").value="";$("#addExclude").value="";$("#addMaxSize").value="";$("#addAutoClick").checked=false;$("#addAutoClickKeywords").value="";$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#dlgFilter").value="";$("#addModal").style.display="flex";setTimeout(()=>$("#addTarget").focus(),50)}
+function closeLogin(){$("#loginModal").style.display="none";$("#pwdRow").hidden=true;$("#codeRow").hidden=true;$("#phoneSendBtn").hidden=false;$("#codeSubmitBtn").hidden=true;$("#qrImg").style.display="";stopLoginTimer();loadAuth()}
+function openAdd(){$("#addErr").textContent="";$("#addTarget").value="";$("#addSince").value="";$("#addLimit").value=1000;$("#addDownload").checked=true;$("#addKeywords").value="";$("#addExclude").value="";$("#addMaxSize").value="";$("#addAutoClick").checked=false;$("#addAutoClickKeywords").value="";$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#dlgFilter").value="";openPage("add");if(!isPhone())setTimeout(()=>$("#addTarget").focus(),50)}
 let dialogCache=[];
 async function toggleDialogs(btn){let el=$("#dlgList"),f=$("#dlgFilter");if(!el.hidden){el.hidden=true;f.hidden=true;return}
-el.hidden=false;f.hidden=false;el.innerHTML='<div class="muted" style="padding:10px">正在加载聊天列表…（首次可能需要几秒）</div>';
-try{let r=await fetch("/api/dialogs?limit=500");if(!r.ok)throw new Error(await r.text());dialogCache=await r.json()}catch(e){el.innerHTML='<div class="qr-status err" style="padding:8px">'+esc(String(e.message||e))+'</div>';return}
+el.hidden=false;f.hidden=false;el.innerHTML='<div class="muted pad-3">正在加载聊天列表…（首次可能需要几秒）</div>';
+try{let r=await fetch("/api/dialogs?limit=500");if(!r.ok)throw new Error(await r.text());dialogCache=await r.json()}catch(e){el.innerHTML='<div class="qr-status err pad-2">'+esc(String(e.message||e))+'</div>';return}
 renderDlgList()}
 function renderDlgList(){let q=($("#dlgFilter").value||"").trim().toLowerCase().replace(/^@/,""),el=$("#dlgList");
 let items=dialogCache.filter(d=>!q||(d.title||"").toLowerCase().includes(q)||(d.username||"").toLowerCase().includes(q));
-el.innerHTML=items.map(d=>'<div class="source" style="cursor:pointer" onclick="pickDialog('+d.id+')">'+({user:"👤",chat:"👥",supergroup:"👥",channel:"📣"}[d.type]||"💬")+' <b>'+esc(d.title||d.id)+'</b>'+(d.username?' <span class="muted">@'+esc(d.username)+'</span>':"")+'<span class="muted" style="float:right;font-size:11px">'+d.id+(d.monitored?' · <span class="pill">已监控</span>':"")+"</span></div>").join("")||'<div class="muted" style="padding:10px">无匹配项</div>'}
-function pickDialog(id){$("#addTarget").value=String(id);$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#addErr").textContent=""}
-function closeAdd(){$("#addModal").style.display="none"}function csvList(v){return (v||"").split(",").map(s=>s.trim()).filter(Boolean)}
+el.innerHTML=items.map(d=>'<div class="source" data-id="'+d.id+'" data-user="'+esc(d.username||"")+'" onclick="pickDialog(this)">'+({user:"👤",chat:"👥",supergroup:"👥",channel:"📣"}[d.type]||"💬")+' <b>'+esc(d.title||d.id)+'</b>'+(d.username?' <span class="muted">@'+esc(d.username)+'</span>':"")+'<span class="muted float-right meta-xs">'+d.id+(d.monitored?' · <span class="pill">已监控</span>':"")+"</span></div>").join("")||'<div class="muted pad-3">无匹配项</div>'}
+function pickDialog(el){let u=el.dataset.user; $("#addTarget").value=u?"@"+u:el.dataset.id;$("#dlgList").hidden=true;$("#dlgFilter").hidden=true;$("#addErr").textContent=""}
+function closeAdd(){goBackPage()}function csvList(v){return (v||"").split(",").map(s=>s.trim()).filter(Boolean)}
 async function submitAdd(){let target=$("#addTarget").value.trim();if(!target){$("#addErr").textContent="请填写频道/群组地址";return}
  let r=await fetch("/api/targets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:target,limit:Number($("#addLimit").value)||1000,since:$("#addSince").value.trim(),download_media:$("#addDownload").checked,keywords:csvList($("#addKeywords").value),exclude_keywords:csvList($("#addExclude").value),media_max_size:(Number($("#addMaxSize").value)||0)*1048576,autoclick_enabled:$("#addAutoClick").checked,autoclick_keywords:csvList($("#addAutoClickKeywords").value)})});
  if(!r.ok){$("#addErr").textContent=await r.text();return}
  closeAdd();load();loadJobs()}
-async function syncSource(id){let r=await fetch("/api/monitor/sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:String(id),limit:500})});if(!r.ok)alert(await r.text());else loadJobs()}
-async function removeSource(id){if(!confirm("确定移除该监控源？已归档的数据会保留。"))return;let r=await fetch("/api/targets?chat_id="+id,{method:"DELETE"});if(!r.ok)alert(await r.text());else load()}
+async function syncSource(id){let r=await fetch("/api/monitor/sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:String(id),limit:500})});if(!r.ok)toast(await r.text());else loadJobs()}
+async function removeSource(id){if(!await askConfirm("确定移除该监控源？已归档的数据会保留。"))return;let r=await fetch("/api/targets?chat_id="+id,{method:"DELETE"});if(!r.ok)toast(await r.text());else load()}
+async function removeAllSources(){
+  let n=(state.targets||[]).length;
+  if(!n){toast("当前没有监控源");return}
+  if(!await askConfirm("确定移除全部 "+n+" 个监控源？\n\n只是停止监控，已归档的消息与文件都会保留。"))return;
+  let r=await fetch("/api/targets?all=1&confirm=1",{method:"DELETE"});
+  let d=await r.json().catch(()=>({}));
+  if(!r.ok){toast("移除失败: "+(d.error||r.status));return}
+  toast("已移除 "+d.removed+" / "+d.total+" 个监控源");
+  load();
+}
+async function purgeAll(){
+  // Two steps on purpose: the dry run is what the operator reads before
+  // deciding, so the confirmation prompt shows real counts from the server
+  // rather than whatever the page happened to have loaded.
+  let r=await fetch("/api/purge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true,confirm:false})});
+  let d=await r.json().catch(()=>({}));
+  if(!r.ok){toast("读取清空统计失败: "+(d.error||r.status));return}
+  let rep=d.report||d;
+  let msg="将永久删除：\n· 消息 "+(rep.messages||0)+" 条\n· 媒体 "+(rep.media||0)+" 个（"+fmtBytes(rep.bytes||0)+"）\n· 全部编号视图与运行记录\n\n监控源、通知规则、发布目标会保留。\n此操作不可恢复。";
+  if(!await askConfirm(msg,true))return;
+  let t=await askText("请输入「清空」确认执行：","",true);
+  if(t!=="清空"){toast("已取消");return}
+  r=await fetch("/api/purge",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true,confirm:true,confirm_text:"清空"})});
+  d=await r.json().catch(()=>({}));
+  if(!r.ok){toast("清空失败: "+(d.error||r.status));return}
+  toast("已清空 · 释放 "+fmtBytes(d.bytes_freed||0));
+  load();refresh();
+}
 let jobsTimer=null;
 async function loadJobs(){try{let rs=await Promise.all([fetch("/api/jobs").then(r=>r.json()),fetch("/api/downloads/summary").then(r=>r.json()).catch(()=>null)]),js=(rs[0]&&rs[0].items)||[],dl=rs[1],el=$("#jobs");if(!js||!js.length){el.innerHTML='<span class="muted">无进行中的任务</span>';return}
  let mdPend=dl?((dl.queued||0)+(dl.running||0)):0,mdDone=dl?((dl.completed||0)+(dl.failed||0)):0,mdTotal=mdDone+mdPend,mdPct=mdTotal?Math.min(100,Math.round(mdDone*100/mdTotal)):100;
- el.innerHTML=js.slice(0,8).map(j=>{let busy=j.state==="done"&&mdPend>0,st=j.state==="running"?"进行中…":(j.state==="done"?(busy?"✓ 消息完成":"✓ 完成"):"✗ "+j.state),ml=busy?'<div class="job-media-busy">媒体 '+mdDone+'/'+mdTotal+' 下载中…<span class="job-bar"><i style="width:'+mdPct+'%"></i></span></div>':(mdTotal?'<div class="job-media-done">媒体 '+mdDone+'/'+mdTotal+' 已就绪</div>':'');return '<div class="job '+j.state+(busy?' media-busy':'')+'"><b>'+esc(j.target)+'</b> <span class="muted">'+(j.kind==="backfill"?"历史回填":"补洞同步")+'</span><span class="job-state">'+st+'</span><div class="muted">归档 '+j.archived+' 条'+(j.error?" · "+esc(j.error):"")+'</div>'+ml+'</div>'}).join("");
+ el.innerHTML=(mdTotal?'<div class="job-media-summary">媒体 '+mdDone+'/'+mdTotal+' 已就绪'+(mdPend?' · 待下载 '+mdPend+'<span class="job-bar"><i style="width:'+mdPct+'%"></i></span>':'')+'</div>':'')+js.slice(0,8).map(j=>{let busy=j.state==="done"&&mdPend>0,st=j.state==="running"?"进行中…":(j.state==="done"?(busy?"✓ 消息完成":"✓ 完成"):"✗ "+j.state),ml=busy?'<div class="job-media-busy">媒体下载中…</div>':(mdTotal?'<div class="job-media-done">媒体已就绪</div>':'');return '<div class="job '+j.state+(busy?' media-busy':'')+'"><b>'+esc(j.target)+'</b> <span class="muted">'+(j.kind==="backfill"?"历史回填":"补洞同步")+'</span><span class="job-state">'+st+'</span><div class="muted">归档 '+j.archived+' 条'+(j.error?" · "+esc(j.error):"")+'</div>'+ml+'</div>'}).join("");
  if((js.some(j=>j.state==="running")||mdPend>0)&&!jobsTimer){jobsTimer=setTimeout(()=>{jobsTimer=null;loadJobs()},3000)}}catch(e){}}
 function openHelp(){$("#helpModal").style.display="flex"}
 function closeHelp(){$("#helpModal").style.display="none"}
@@ -441,7 +1345,7 @@ function fmtBytes(n){if(!n&&n!==0)return"-";let u=["B","KB","MB","GB","TB"],i=0;
 async function loadStorage(){
   $("#deletedBanner").style.display="none";history.replaceState({},"","/storage");
   let s=await fetch("/api/storage").then(r=>r.json()).catch(()=>null);
-  if(!s){$("#feed").innerHTML='<div class="empty">无法读取存储信息</div>';return}
+  if(!s){$("#feed").innerHTML=emptyHTML("无法读取存储信息","归档服务可能未就绪，稍后重试");return}
   let cards=[
     ["数据库",fmtBytes(s.db_bytes),"SQLite 主库"],
     ["WAL",fmtBytes(s.wal_bytes),"预写日志"],
@@ -450,14 +1354,15 @@ async function loadStorage(){
     ["备份",fmtBytes(s.backups_bytes),s.backups_count+" 份 · 每日自动"+(s.latest_backup?"<br>最新："+s.latest_backup.split("/").pop():"")],
     ["磁盘可用",fmtBytes(s.free_bytes),"低于 "+fmtBytes(s.min_free_space)+" 时暂停媒体下载"]
   ];
-  $("#feed").innerHTML='<div class="media-grid" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">'+cards.map(c=>'<div class="media-card" style="cursor:default"><div class="media-info"><div class="muted" style="font-size:12px">'+c[0]+'</div><div class="num" style="font-size:22px;font-weight:750;margin:4px 0">'+c[1]+'</div><div class="muted" style="font-size:12px;line-height:1.5">'+c[2]+"</div></div></div>").join("")+"</div>"
+  $("#feed").innerHTML='<div class="media-grid grid-240">'+cards.map(c=>'<div class="media-card no-pointer"><div class="media-info"><div class="muted fs-12">'+c[0]+'</div><div class="stat-num">'+c[1]+'</div><div class="muted fs-12 lh-15">'+c[2]+"</div></div></div>").join("")+"</div>"
+    +'<div class="danger-zone"><div><b>危险操作</b><p class="muted">清空归档会删除全部消息、媒体文件与编号视图，不可恢复；监控源、通知规则、发布目标保留。</p></div><div class="danger-actions"><button class="button danger" onclick="purgeAll()">清空归档</button><button class="button danger" onclick="removeAllSources()">移除全部监控源</button></div></div>'
 }
 let rightPanel="download",downloadTimer=null,downloadPaused=false;
 function setRightPanel(panel){
   rightPanel=panel;
   let panelMap={download:"#downloadPanel",stats:"#statsPanel",dest:"#destPanel",notify:"#notifyPanel",click:"#clickPanel",account:"#accountPanel"};
   let tabMap={download:"#rightTabDownload",stats:"#rightTabStats",dest:"#rightTabDest",notify:"#rightTabNotify",click:"#rightTabClick",account:"#rightTabAccount"};
-  Object.keys(panelMap).forEach(function(x){let p=$(panelMap[x]);if(p)p.hidden=x!==panel;let b=$(tabMap[x]);if(b)b.classList.toggle("active",x===panel)});
+  Object.keys(panelMap).forEach(function(x){let p=$(panelMap[x]);if(p)p.hidden=x!==panel;let b=$(tabMap[x]);if(b){b.classList.toggle("active",x===panel);b.setAttribute("aria-selected",x===panel?"true":"false")}});
   if(panel==="notify")loadNotify();
   if(panel==="click")loadAutoClick();
   if(panel==="account")loadAccount();
@@ -512,7 +1417,7 @@ async function loadDownloadPanel(){
       let pct=x.progress_total?Math.min(100,Math.round(x.progress_done*100/x.progress_total)):0;
       return '<div class="download-item"><div class="download-name">'+esc(x.name||"下载任务")+'</div><div class="download-progress"><i style="width:'+pct+'%"></i></div><div class="download-meta">'+(x.progress_total?(pct+"% · "):"进行中 · ")+(x.speed_bps?fmtBytes(x.speed_bps)+"/s":"下载中")+(x.eta_seconds?" · "+x.eta_seconds+"s":"")+'</div></div>'
     }).join(""):'<div class="download-empty">当前没有运行中的下载任务</div>';
-    let failedHTML=failed.length?'<details class="download-item"><summary>失败项 · '+failed.length+'</summary>'+failed.map(function(x){return '<div style="margin-top:7px"><b>'+esc(x.name||("media #"+x.id))+'</b><div class="download-meta"><span class="error-kind '+esc(x.error_kind||"unknown")+'">'+esc(x.error_kind||"unknown")+'</span> · '+esc(x.error_detail||"")+(x.next_retry_at?" · "+new Date(x.next_retry_at*1000).toLocaleString():"")+'</div></div>'}).join("")+'</details>':"";
+    let failedHTML=failed.length?'<details class="download-item"><summary>失败项 · '+failed.length+'</summary>'+failed.map(function(x){return '<div class="mt-1"><b>'+esc(x.name||("media #"+x.id))+'</b><div class="download-meta"><span class="error-kind '+esc(x.error_kind||"unknown")+'">'+esc(x.error_kind||"unknown")+'</span> · '+esc(x.error_detail||"")+(x.next_retry_at?" · "+new Date(x.next_retry_at*1000).toLocaleString():"")+'</div></div>'}).join("")+'</details>':"";
     el.innerHTML=activeHTML+failedHTML;
   }catch(e){}
 }
@@ -526,7 +1431,7 @@ async function loadNotify(){
     let rules=d.rules||[],log=d.log||[];
     $("#notifyRules").innerHTML=rules.length?rules.map(function(x){
       let outlets=[];if(x.webhook_url)outlets.push("webhook");if(x.bot_token_masked)outlets.push("bot:"+esc(x.bot_chat_id||"?"));
-      return '<div class="download-item"><div class="download-name">'+esc(x.name)+(x.enabled?' <span class="topic-pill">启用</span>':' <span class="pill">停用</span>')+'</div><div class="download-meta">'+outlets.join(" · ")+' · 关键词 '+(x.keywords&&x.keywords.length?esc(x.keywords.join(",")):"全部")+(x.chat_ids&&x.chat_ids.length?" · 聊天 "+x.chat_ids.join(","):"")+'</div><div class="download-actions" style="margin-top:6px"><button class="button" onclick="testNotifyRule('+x.id+')">发送测试</button><button class="button" onclick="toggleNotifyRule('+x.id+','+(!x.enabled)+')">'+(x.enabled?"停用":"启用")+'</button><button class="button" onclick="delNotifyRule('+x.id+')">删除</button></div></div>'
+      return '<div class="download-item"><div class="download-name">'+esc(x.name)+(x.enabled?' <span class="topic-pill">启用</span>':' <span class="pill">停用</span>')+'</div><div class="download-meta">'+outlets.join(" · ")+' · 关键词 '+(x.keywords&&x.keywords.length?esc(x.keywords.join(",")):"全部")+(x.chat_ids&&x.chat_ids.length?" · 聊天 "+x.chat_ids.join(","):"")+'</div><div class="download-actions mt-1"><button class="button" onclick="testNotifyRule('+x.id+')">发送测试</button><button class="button" onclick="toggleNotifyRule('+x.id+','+(!x.enabled)+')">'+(x.enabled?"停用":"启用")+'</button><button class="button" onclick="delNotifyRule('+x.id+')">删除</button></div></div>'
     }).join(""):'<div class="download-empty">暂无通知规则。匹配关键词的实时消息会推送到 Webhook / Bot。</div>';
     $("#notifyLog").innerHTML=log.length?log.map(function(x){
       return '<div class="download-item"><div class="download-meta">规则 '+x.rule_id+' · '+esc(x.channel||"")+' · '+(x.status==="sent"?"✅ 已发送":x.status==="failed"?"❌ 失败":"⏭ "+esc(x.status))+(x.error?" · "+esc(x.error):"")+'</div></div>'
@@ -535,23 +1440,23 @@ async function loadNotify(){
 }
 async function submitNotifyRule(){
   let body={name:$("#nName").value.trim(),keywords:$("#nKeywords").value.split(",").map(s=>s.trim()).filter(Boolean),exclude_keywords:$("#nExclude").value.split(",").map(s=>s.trim()).filter(Boolean),chat_ids:$("#nChats").value.split(",").map(s=>parseInt(s.trim(),10)).filter(Number.isFinite),webhook_url:$("#nWebhook").value.trim(),bot_token:$("#nBotToken").value.trim(),bot_chat_id:$("#nBotChat").value.trim()};
-  if(!body.name||( !body.webhook_url&&!(body.bot_token&&body.bot_chat_id))){alert("请填写名称，并配置 Webhook 或 Bot Token + chat_id");return}
+  if(!body.name||( !body.webhook_url&&!(body.bot_token&&body.bot_chat_id))){toast("请填写名称，并配置 Webhook 或 Bot Token + chat_id");return}
   try{
     let r=await fetch("/api/notify/rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    if(!r.ok){alert("保存失败: "+(await r.text()));return}
+    if(!r.ok){toast("保存失败: "+(await r.text()));return}
     ["nName","nKeywords","nExclude","nChats","nWebhook","nBotChat","nBotToken"].forEach(id=>$("#"+id).value="");
     loadNotify();
-  }catch(e){alert("保存失败: "+e)}
+  }catch(e){toast("保存失败: "+e)}
 }
 async function toggleNotifyRule(id,enabled){try{await fetch("/api/notify/rules",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,enabled:enabled})});loadNotify()}catch(e){}}
-async function delNotifyRule(id){if(!confirm("删除该通知规则？"))return;try{await fetch("/api/notify/rules?id="+id,{method:"DELETE"});loadNotify()}catch(e){}}
+async function delNotifyRule(id){if(!await askConfirm("删除该通知规则？"))return;try{await fetch("/api/notify/rules?id="+id,{method:"DELETE"});loadNotify()}catch(e){}}
 async function testNotifyRule(id){
   try{
     let r=await fetch("/api/notify/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id})});
     let d=await r.json();
-    if(d.status==="sent"){alert("测试通知已发送（"+d.channel+"）")}else{alert("发送"+(d.status==="failed"?"失败":"")+": "+(d.error||d.status||""))}
+    if(d.status==="sent"){toast("测试通知已发送（"+d.channel+"）")}else{toast("发送"+(d.status==="failed"?"失败":"")+": "+(d.error||d.status||""))}
     loadNotify();
-  }catch(e){alert("测试失败: "+e)}
+  }catch(e){toast("测试失败: "+e)}
 }
 async function loadAutoClick(){
   try{
@@ -570,17 +1475,284 @@ async function loadAutoClick(){
 async function saveAutoClick(){
   try{
     let r=await fetch("/api/autoclick",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bot_token:$("#acToken").value.trim(),bot_chat_id:$("#acChat").value.trim()})});
-    if(!r.ok){alert("保存失败: "+(await r.text()));return}
+    if(!r.ok){toast("保存失败: "+(await r.text()));return}
     $("#acToken").value="";loadAutoClick();
-  }catch(e){alert("保存失败: "+e)}
+  }catch(e){toast("保存失败: "+e)}
 }
 async function testAutoClick(){
   try{
     let r=await fetch("/api/autoclick/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({bot_token:$("#acToken").value.trim(),bot_chat_id:$("#acChat").value.trim()})});
     let t=await r.text(),d={};try{d=JSON.parse(t)}catch(_){ }
-    if(r.ok&&d.status==="sent"){alert("测试消息已发送，请到对应的 chat 查看")}
-    else{alert("发送失败: "+(d.error||t))}
-  }catch(e){alert("测试失败: "+e)}
+    if(r.ok&&d.status==="sent"){toast("测试消息已发送，请到对应的 chat 查看")}
+    else{toast("发送失败: "+(d.error||t))}
+  }catch(e){toast("测试失败: "+e)}
 }
 setRightPanel("download");loadDownloadPanel();startDownloadTimer();load();
-</script></body></html>
+
+/* ══ 手机交互层 ══════════════════════════════════════════════════════
+   这一整块只在触屏/窄屏上生效；桌面路径一行都不走。
+   ══════════════════════════════════════════════════════════════════ */
+(function(){
+  var narrow=window.matchMedia("(max-width:650px),(max-height:520px)");
+  var coarse=window.matchMedia("(hover:none)");
+  function phone(){return narrow.matches}
+
+  /* ── 消息操作：长按弹出底部动作条 ────────────────────────
+     原来长按是把 .message-actions 展开在卡片里；手机上这既会和系统
+     文本选择/图片长按菜单抢事件，又把卡片撑高。改成始终隐藏行内
+     操作，长按弹出原生风格的底部动作条。 */
+  var pressTimer=null,pressStart=null,pressedRow=null;
+  function clearPress(){clearTimeout(pressTimer);pressTimer=null;pressedRow=null}
+  function closeMsgMenu(){var w=document.querySelector(".ask-scrim.msg-menu");if(w)w.remove()}
+  function copyLink(rowid){
+    var u=location.origin+"/messages?focus="+rowid;
+    if(navigator.clipboard)return navigator.clipboard.writeText(u).then(function(){toast("已复制链接")},function(){toast("复制失败")});
+    toast(u)
+  }
+  function copyText(el){
+    var m=el&&el.closest?el.closest(".msg"):el;
+    if(!m||!m.querySelector)return;
+    var t=m.querySelector(".text"),s=t?t.textContent:"";
+    if(!s){toast("这条消息没有可复制的文本");return}
+    if(navigator.clipboard)navigator.clipboard.writeText(s).then(function(){toast("已复制文本")},function(){toast("复制失败")});
+    else toast("当前环境不支持复制")
+  }
+  function openMsgMenu(row){
+    if(!row)return;closeMsgMenu();
+    var id=Number(row.dataset.rowid);
+    var w=document.createElement("div");w.className="ask-scrim msg-menu";
+    w.innerHTML='<div class="ask-sheet msg-sheet" role="dialog" aria-modal="true">'
+      +'<div class="ask-grip" aria-hidden="true"></div>'
+      +'<div class="msg-sheet-title">消息操作</div>'
+      +'<button class="m-action" data-act="view"><span class="m-ico">↗</span><span>查看原文</span></button>'
+      +'<button class="m-action" data-act="link"><span class="m-ico">⇢</span><span>复制链接</span></button>'
+      +'<button class="m-action" data-act="text"><span class="m-ico">▤</span><span>复制文本</span></button>'
+      +'<button class="m-action danger" data-act="del"><span class="m-ico">⚠</span><span>从本地归档删除</span></button>'
+      +'<button class="m-action cancel" data-act="cancel">取消</button></div>';
+    /* 长按松手时浏览器还会补发一次 click，落点正好在遮罩上，会把刚弹出的
+       动作条立刻关掉。忽略打开后 350ms 内的点击即可。 */
+    var born=Date.now();
+    w.addEventListener("click",function(e){
+      if(Date.now()-born<350)return;
+      if(e.target===w){w.remove();return}
+      var b=e.target.closest(".m-action");if(!b)return;
+      var act=b.dataset.act;w.remove();
+      if(act==="view")location.href="/messages?focus="+id;
+      else if(act==="link")copyLink(id);
+      else if(act==="text")copyText(row);
+      else if(act==="del")delRow(id,row);
+    });
+    document.body.appendChild(w);
+    if(navigator.vibrate)try{navigator.vibrate(12)}catch(e){}
+  }
+  document.addEventListener("touchstart",function(e){
+    if(!phone())return;
+    var row=e.target.closest(".msg");
+    if(!row)return;
+    pressedRow=row;pressStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    pressTimer=setTimeout(function(){if(pressedRow)openMsgMenu(pressedRow)},450);
+  },{passive:true});
+  document.addEventListener("touchmove",function(e){
+    if(!pressStart)return;
+    var t=e.touches[0];
+    if(Math.abs(t.clientX-pressStart.x)>10||Math.abs(t.clientY-pressStart.y)>10)clearPress();
+  },{passive:true});
+  document.addEventListener("touchend",function(){clearTimeout(pressTimer);pressTimer=null;pressStart=null},{passive:true});
+  document.addEventListener("touchcancel",clearPress,{passive:true});
+  // 长按时 WebView 会弹自己的「复制/下载图片」菜单，和我们的动作条叠在一起。
+  document.addEventListener("contextmenu",function(e){if(phone())e.preventDefault()},{capture:true});
+
+  /* ── 图片查看器：滑动切换 + 双指缩放 ──────────────────
+     WebView 全局缩放是关掉的（整页 zoom 会把布局揉烂），所以图片放大
+     必须在这里自己做：双指 pinch 1–4x、放大后单指平移、双击 1↔2.5x。
+     桌面端保持原行为：点空白关闭。 */
+  var lbStart=null,pinchStart=null,panStart=null,lastTap=0,lbScale=1,lbTx=0,lbTy=0;
+  var lightbox=document.getElementById("lightbox");
+  function lbTarget(){var n=document.getElementById("light");return n?n.querySelector("img,video"):null}
+  function lbApply(){var t=lbTarget();if(!t)return;t.style.transformOrigin="center center";t.style.transform="translate("+lbTx+"px,"+lbTy+"px) scale("+lbScale+")"}
+  function lbReset(){lbScale=1;lbTx=0;lbTy=0;pinchStart=null;panStart=null;lbStart=null;var t=lbTarget();if(t){t.style.transform="";t.style.transition=""}}
+  // 切图 / 关闭时复位，否则下一张会带着上一张的缩放。
+  ["openMedia","openMessageMedia","mediaStep","closeLight","showImage"].forEach(function(n){
+    var f=window[n];
+    if(typeof f==="function")window[n]=function(){lbReset();return f.apply(this,arguments)}
+  });
+  if(lightbox){
+    lightbox.addEventListener("touchstart",function(e){
+      if(!phone())return;
+      if(e.touches.length>=2){
+        var a=e.touches[0],b=e.touches[1];
+        pinchStart={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),scale:lbScale};
+        lbStart=null;panStart=null;return
+      }
+      lbStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+      if(lbScale>1)panStart={x:e.touches[0].clientX,y:e.touches[0].clientY,tx:lbTx,ty:lbTy};
+    },{passive:true});
+    lightbox.addEventListener("touchmove",function(e){
+      if(!phone())return;
+      if(pinchStart&&e.touches.length>=2){
+        var a=e.touches[0],b=e.touches[1],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+        lbScale=Math.max(1,Math.min(4,pinchStart.scale*(d/(pinchStart.d||1))));
+        if(lbScale<=1){lbScale=1;lbTx=0;lbTy=0}
+        lbApply();
+        if(e.cancelable)e.preventDefault();
+        return
+      }
+      if(panStart&&e.touches.length===1){
+        var p=e.touches[0];
+        lbTx=panStart.tx+(p.clientX-panStart.x);
+        lbTy=panStart.ty+(p.clientY-panStart.y);
+        lbApply();
+        if(e.cancelable)e.preventDefault();
+      }
+    },{passive:false});
+    lightbox.addEventListener("touchend",function(e){
+      if(!phone())return;
+      if(pinchStart){
+        if(e.touches.length<2){pinchStart=null;if(lbScale<1.05)lbReset()}
+        return
+      }
+      if(!lbStart)return;
+      var t=e.changedTouches[0],dx=t.clientX-lbStart.x,dy=t.clientY-lbStart.y;
+      lbStart=null;
+      if(lbScale>1){panStart=null;return}
+      var now=Date.now();
+      if(Math.abs(dx)<12&&Math.abs(dy)<12){
+        if(now-lastTap<300){lbScale=2.5;lbApply();lastTap=0}else lastTap=now;
+        return
+      }
+      lastTap=0;
+      // 只有明确的横向滑动才算切换，避免和纵向手势冲突
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){
+        if(typeof window.mediaStep==="function")window.mediaStep(dx<0?1:-1);
+      }
+    },{passive:true});
+    // 点空白关闭是桌面习惯，手机上容易误触 —— 只在桌面保留。
+    if(phone())lightbox.removeAttribute("onclick");
+  }
+
+  /* ── 底部抽屉：下滑关闭 ────────────────────────────────
+     桌面侧栏靠 ☰ 切换；手机上是 sheet，应该能往下拉走。 */
+  var sheet=document.querySelector(".right");
+  var grip=document.querySelector(".sheet-grip");
+  if(sheet&&grip){
+    var shStart=null;
+    function onSheetStart(e){shStart=e.touches[0].clientY}
+    function onSheetMove(e){
+      if(shStart===null)return;
+      var dy=Math.max(0,e.touches[0].clientY-shStart);
+      sheet.style.transform="translateY("+dy+"px)";
+      sheet.style.transition="none";
+    }
+    function onSheetEnd(e){
+      if(shStart===null)return;
+      var dy=Math.max(0,e.changedTouches[0].clientY-shStart);
+      shStart=null;
+      sheet.style.transition="";
+      sheet.style.transform="";
+      if(dy>90)closeSheet();
+    }
+    grip.addEventListener("touchstart",onSheetStart,{passive:true});
+    grip.addEventListener("touchmove",onSheetMove,{passive:true});
+    grip.addEventListener("touchend",onSheetEnd,{passive:true});
+  }
+
+  /* ── 返回键：把"还能不能退"告诉原生壳 ──────────────────
+     MainActivity 问的是 __tdlCanGoBack / __tdlGoBack。可回退层级按
+     「最上层浮层优先」排列：搜索页 → 登录弹窗 → 动作条 → 抽屉 →
+     灯箱 → 视图栈。视图栈由 mobileNav / openPage 维护（导航用 replaceState）。 */
+  window.__tdlBackDepth=0;
+  // 登录仍是弹窗（扫码/手机号/Session 是同一件事的三种入口），
+  // 它要优先于底下的账号页响应返回键。
+  function __tdlPhoneModal(){
+    var e=document.getElementById("loginModal");
+    return e&&e.style.display==="flex"?"loginModal":"";
+  }
+  window.__tdlCanGoBack=function(){
+    if(document.body.classList.contains("m-search-open"))return true;
+    if(__tdlPhoneModal())return true;
+    if(document.querySelector(".ask-scrim"))return true;
+    if(document.body.classList.contains("show-right"))return true;
+    var lb=document.getElementById("lightbox");
+    if(lb&&lb.style.display==="flex")return true;
+    if((window.__tdlViewStack||[]).length)return true;
+    return false;
+  };
+  window.__tdlGoBack=function(){
+    if(document.body.classList.contains("m-search-open")){closeMobileSearch();return true}
+    if(__tdlPhoneModal()){closeLogin();return true}
+    var ask=document.querySelector(".ask-scrim");
+    if(ask){var c=ask.querySelector(".ask-cancel");if(c)c.click();else ask.remove();return true}
+    if(document.body.classList.contains("show-right")){closeSheet();return true}
+    var lb=document.getElementById("lightbox");
+    if(lb&&lb.style.display==="flex"){if(typeof closeLight==="function")closeLight();return true}
+    var st=window.__tdlViewStack||[];
+    if(st.length){mobileNav(st.pop(),true);return true}
+    return false;
+  };
+  // 让原生壳知道当前该显示哪个底栏格子（用于返回后的高亮同步）
+  window.__tdlCurrentView=function(){return state.view};
+
+  /* ── 下拉刷新：给原生 SwipeRefreshLayout 调用 ───────────
+     返回 refresh() 的 Promise，指示器才能跟着真实加载完成收起。 */
+  window.__tdlRefresh=function(){
+    try{if(document.body.classList.contains("show-right"))closeSheet()}catch(e){}
+    return refresh()
+  };
+
+  /* ── 下拉刷新 ──────────────────────────────────────────
+     没有 androidx，就没有 SwipeRefreshLayout，只能在 Web 侧自己检测。
+     只在 .feed 滚到顶部时才接管，避免和正常滚动打架。 */
+  var feed=document.querySelector(".feed");
+  if(feed){
+    var ptrEl=null,ptrStart=null,ptrPulling=false,ptrBusy=false;
+    function ptrBox(){
+      if(ptrEl)return ptrEl;
+      ptrEl=document.createElement("div");
+      ptrEl.className="ptr";
+      ptrEl.innerHTML='<div class="ptr-spin"></div><span class="ptr-label">下拉刷新</span>';
+      if(feed.parentNode)feed.parentNode.insertBefore(ptrEl,feed);
+      return ptrEl;
+    }
+    function ptrReset(){if(ptrEl){ptrEl.style.height="0px";ptrEl.classList.remove("ready")}}
+    feed.addEventListener("touchstart",function(e){
+      if(ptrBusy||feed.scrollTop>0)return;
+      ptrStart=e.touches[0].clientY;ptrPulling=false;
+    },{passive:true});
+    feed.addEventListener("touchmove",function(e){
+      if(ptrStart===null||ptrBusy)return;
+      var dy=e.touches[0].clientY-ptrStart;
+      if(feed.scrollTop>0){ptrStart=null;return}
+      if(dy<=0){if(ptrPulling)ptrReset();ptrPulling=false;return}
+      ptrPulling=true;
+      var d=Math.min(dy,110),box=ptrBox(),ready=d>=70;
+      box.style.height=d+"px";
+      box.classList.toggle("ready",ready);
+      var lb=box.querySelector(".ptr-label");if(lb)lb.textContent=ready?"松开刷新":"下拉刷新";
+    },{passive:true});
+    feed.addEventListener("touchend",function(){
+      if(ptrStart===null)return;
+      ptrStart=null;
+      if(!ptrPulling)return;
+      ptrPulling=false;
+      var d=parseInt(ptrEl?ptrEl.style.height:"0",10)||0;
+      if(d<70){ptrReset();return}
+      ptrBusy=true;
+      var box=ptrBox();
+      box.classList.add("ready");box.style.height="48px";
+      var lb=box.querySelector(".ptr-label");if(lb)lb.textContent="刷新中…";
+      var finished=false;
+      function ptrDone(){if(finished)return;finished=true;ptrBusy=false;ptrReset()}
+      try{Promise.resolve(window.__tdlRefresh()).catch(function(){toast("刷新失败")}).then(ptrDone,ptrDone)}catch(e){ptrDone()}
+      setTimeout(ptrDone,8000);
+    },{passive:true});
+  }
+
+  /* ── 触屏上彻底关掉 hover 依赖的显隐 ────────────────────
+     coarse.matches 为真时 CSS 的 :hover 会一直粘在上次点击的元素上。
+     syncMobileNav 之外没有别的逻辑依赖 hover，这里只需在断点切换时
+     重新同步一次底栏高亮。 */
+  function resync(){if(typeof syncMobileNav==="function")syncMobileNav()}
+  if(narrow.addEventListener)narrow.addEventListener("change",resync);
+  resync();
+})();
+</script><script>if("serviceWorker" in navigator){addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})})}</script></body></html>

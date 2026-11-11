@@ -171,6 +171,9 @@ type loginLimiter struct {
 type loginFailure struct {
 	count int
 	until time.Time
+	// last 是最近一次失败的时间：count<3 时 until==now（wait=0），
+	// 回收判定必须看它而不是 until，否则连续失败会被自己的清扫清零。
+	last time.Time
 }
 
 func newLoginLimiter() *loginLimiter {
@@ -206,6 +209,15 @@ func (l *loginLimiter) fail(key string, now time.Time) time.Duration {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.ensure()
+	// 顺带回收陈旧项：条目只在成功登录时被 reset 删除，攻击者轮换源地址
+	// 会让 map 无限增长。判定看 last（最近失败时间）而非 until——count<3
+	// 时 until==now，按 until 收会把正在累加的计数器清掉，锁死永远建立
+	// 不起来。1 小时空闲远超 15 分钟封顶窗口，回收是安全的。
+	for k, v := range l.fails {
+		if now.Sub(v.last) > time.Hour {
+			delete(l.fails, k)
+		}
+	}
 	f, ok := l.fails[key]
 	if !ok {
 		f = &loginFailure{}
@@ -223,6 +235,7 @@ func (l *loginLimiter) fail(key string, now time.Time) time.Duration {
 			wait = 15 * time.Minute
 		}
 	}
+	f.last = now
 	f.until = now.Add(wait)
 	return wait
 }
@@ -281,8 +294,11 @@ func (w *WebServer) renderLogin(rw http.ResponseWriter, r *http.Request, usernam
 	rw.Header().Set("Cache-Control", "no-store")
 	rw.Header().Set("X-Frame-Options", "DENY")
 	rw.Header().Set("Referrer-Policy", "no-referrer")
+	// style-src 必须带 'self'：登录页引用 /static/theme.css 取共用 token。
+	// 只加 'self'，脚本仍是内联白名单、其余一律 default-src 'none' ——
+	// 样式表不构成脚本执行面，而 'unsafe-inline' 本来就已经允许内联样式。
 	rw.Header().Set("Content-Security-Policy",
-		"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+		"default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	rw.WriteHeader(status)
 	_, _ = rw.Write([]byte(page))
 }
@@ -369,8 +385,10 @@ func (w *WebServer) loginPage(rw http.ResponseWriter, r *http.Request) {
 // logout always clears the cookie, even when the request carries none, so a
 // stale browser state is never left behind.
 func (w *WebServer) logout(rw http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodGet {
-		rw.Header().Set("Allow", "GET, POST")
+	// POST only: a GET logout can be triggered by any third-party page that
+	// points an <img> or link at /logout, signing the user out.
+	if r.Method != http.MethodPost {
+		rw.Header().Set("Allow", "POST")
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -405,10 +423,16 @@ func (w *WebServer) loginRoutes(next http.Handler) http.Handler {
 }
 
 // denySession answers an unauthenticated request: browsers get pushed to the
-// login page (preserving where they were headed), API clients get a clean 401
-// so a fetch() does not try to parse HTML.
+// login page (preserving where they were headed), API clients and subresources
+// get a clean 401 so a fetch() does not try to parse HTML.
 func (w *WebServer) denySession(rw http.ResponseWriter, r *http.Request) {
-	if strings.HasPrefix(r.URL.Path, "/api/") {
+	// /media/<sha256>, /media/thumb|preview/<sha256> and /avatar/* are
+	// subresources, not pages. Redirecting them is worse than useless: the
+	// element follows the 303, receives the login page as image/video bytes and
+	// reports a codec error, so an expired session looks like a corrupt file.
+	// The page routes /media/images, /media/videos and /media/files keep the
+	// redirect -- they are navigations and must land on the login form.
+	if strings.HasPrefix(r.URL.Path, "/api/") || isSubresource(r.URL.Path) {
 		rw.Header().Set("WWW-Authenticate", `Form realm="tdl-archive"`)
 		http.Error(rw, "unauthorized", http.StatusUnauthorized)
 		return
@@ -422,4 +446,20 @@ func (w *WebServer) denySession(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(rw, r, target, http.StatusSeeOther)
+}
+
+// isSubresource reports whether the path addresses bytes embedded by a page
+// (img/video/audio src) rather than a navigable document.
+func isSubresource(path string) bool {
+	if strings.HasPrefix(path, "/avatar/") {
+		return true
+	}
+	if !strings.HasPrefix(path, "/media/") {
+		return false
+	}
+	switch path {
+	case "/media/images", "/media/videos", "/media/files":
+		return false
+	}
+	return true
 }

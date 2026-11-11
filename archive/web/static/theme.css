@@ -1,27 +1,28 @@
-:root{color-scheme:dark;--bg-app:#080a0f;--bg-surface:#10141d;--bg-surface-hover:#151a24;--bg-elevated:#1b2230;--bg-input:#0d1118;--fg-primary:#e9edf5;--fg-secondary:#8993a5;--fg-tertiary:#687386;--fg-inverse:#fff;--border-subtle:#1a202b;--border-default:#242b38;--border-strong:#3a4354;--accent:#2AABEE;--accent-hover:#229edb;--accent-soft:rgba(42,171,238,.12);--state-success:#7ee2a8;--state-warn:#f0b37e;--state-danger:#f0808f;--state-info:#78b7ff;--event-bg:rgba(42,171,238,.08);--event-fg:#a9dcf6;--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-7:48px;--r-sm:4px;--r-md:6px;--r-card:10px;--r-lg:12px;--r-full:9999px;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;--font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--fs-xs:11px;--fs-sm:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:20px;--fs-2xl:28px;--t-fast:120ms;--t-base:200ms;--t-slow:320ms;--ease:cubic-bezier(.2,0,0,1);--bg:var(--bg-app);--panel:var(--bg-surface);--panel2:var(--bg-surface-hover);--line:var(--border-default);--text:var(--fg-primary);--muted:var(--fg-secondary)}
-[data-theme="light"]{color-scheme:light;--bg-app:#f4f7fb;--bg-surface:#fff;--bg-surface-hover:#eef3f8;--bg-elevated:#fff;--bg-input:#f8fafc;--fg-primary:#17212b;--fg-secondary:#5f6b78;--fg-tertiary:#7c8793;--fg-inverse:#fff;--border-subtle:#e7edf3;--border-default:#d8e0e8;--border-strong:#b9c6d3;--accent:#229ed9;--accent-hover:#168dcc;--accent-soft:rgba(34,158,217,.11);--state-success:#198754;--state-warn:#b26a00;--state-danger:#c83c4d;--state-info:#2878c8;--event-bg:rgba(34,158,217,.09);--event-fg:#17688e}
+:root{color-scheme:dark;--bg-app:#0b0e14;--bg-surface:#131824;--bg-surface-hover:#181f2c;--bg-elevated:#1e2634;--bg-input:#0f131c;--fg-primary:#e9edf5;--fg-secondary:#94a0b4;--fg-tertiary:#6f7d94;--fg-inverse:#fff;--border-subtle:#1e2633;--border-default:#2a3444;--border-strong:#435064;--accent:#2AABEE;--accent-hover:#229edb;--accent-soft:rgba(42,171,238,.16);--state-success:#86e3ae;--state-warn:#f0b37e;--state-danger:#f0808f;--danger-soft:rgba(240,128,143,.1);--state-info:#78b7ff;--event-bg:rgba(42,171,238,.08);--event-fg:#a9dcf6;--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;--sp-7:48px;--r-sm:4px;--r-md:8px;--r-card:12px;--r-lg:16px;--r-full:9999px;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;--font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;--fs-xs:12px;--fs-sm:13px;--fs-md:14px;--fs-lg:16px;--fs-xl:21px;--t-instant:80ms;--t-fast:120ms;--t-base:200ms;--t-slow:320ms;--ease:cubic-bezier(.2,0,0,1);--overlay:rgba(0,0,0,.78);--overlay-soft:rgba(0,0,0,.55);--overlay-badge:rgba(0,0,0,.72);--shadow-hover:0 4px 16px rgba(0,0,0,.22);--shadow-sm:0 1px 2px rgba(0,0,0,.28);--shadow-md:0 8px 24px rgba(0,0,0,.24);--shadow-lg:0 16px 44px rgba(0,0,0,.32);--lh-tight:1.35;--lh-body:1.6;--z-base:0;--z-raised:2;--z-sticky:10;--z-modal:30;--z-modal-top:40;--z-drawer:60;--z-nav:70;--z-lightbox:80;--z-toast:100}
+[data-theme="light"]{color-scheme:light;--bg-app:#f2f5fa;--bg-surface:#fff;--bg-surface-hover:#eef3f8;--bg-elevated:#fff;--bg-input:#f8fafc;--fg-primary:#17212b;--fg-secondary:#5f6b78;--fg-tertiary:#7c8793;--fg-inverse:#fff;--border-subtle:#e7edf3;--border-default:#d3dce6;--border-strong:#b9c6d3;--accent:#229ed9;--accent-hover:#168dcc;--accent-soft:rgba(34,158,217,.14);--state-success:#198754;--state-warn:#b26a00;--state-danger:#c83c4d;--danger-soft:rgba(200,60,77,.08);--state-info:#2878c8;--event-bg:rgba(34,158,217,.09);--event-fg:#17688e}
 *{box-sizing:border-box;scrollbar-color:var(--border-strong) transparent}html,body{margin:0;min-height:100%;background:var(--bg-app);color:var(--fg-primary);font:var(--fs-md) var(--font-sans)}body{transition:background var(--t-base) var(--ease),color var(--t-base) var(--ease)}
 .shell{height:100vh;height:100dvh;display:grid;grid-template-columns:248px minmax(0,1fr) 320px;overflow:hidden}.side,.right{background:var(--bg-surface);border-color:var(--border-default)}.side{border-right:1px solid var(--border-default);padding:var(--sp-5) var(--sp-3);overflow:auto}.right{border-left:1px solid var(--border-default);padding:var(--sp-4);overflow:auto}.main{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--bg-app)}
-.brand{font-size:var(--fs-lg);font-weight:700;padding:var(--sp-2) var(--sp-3) var(--sp-5)}.brand:before{content:"●";color:var(--accent);font-size:10px;margin-right:var(--sp-2)}.nav{display:flex;flex-direction:column;gap:2px}.nav button,.source{position:relative;width:100%;border:0;background:none;color:var(--fg-secondary);text-align:left;padding:10px 12px;border-radius:var(--r-md);cursor:pointer;font:inherit;transition:all var(--t-fast) var(--ease)}.nav button:hover,.nav button.active,.source:hover,.source.active{background:var(--accent-soft);color:var(--accent)}.nav button.active:before{content:"";position:absolute;left:0;top:20%;width:3px;height:60%;border-radius:var(--r-full);background:var(--accent)}.section{margin:var(--sp-6) var(--sp-2) var(--sp-2);font-size:var(--fs-xs);color:var(--fg-secondary);text-transform:uppercase;letter-spacing:.08em}.source small{display:block;margin-top:2px;color:var(--fg-tertiary)}
-.top{height:68px;display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--border-default);background:var(--bg-app)}.search{flex:1;min-width:120px;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:10px 12px;outline:none}.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.button{border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-primary);padding:10px 14px;border-radius:var(--r-md);cursor:pointer;transition:all var(--t-fast) var(--ease)}.button:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}.button.primary{background:var(--accent);border-color:var(--accent);color:var(--fg-inverse)}.top-title{display:none;font-weight:700;white-space:nowrap}.only-narrow{display:none}.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-secondary);border-radius:var(--r-full);padding:7px 13px;cursor:pointer;white-space:nowrap;font-size:var(--fs-sm)}.chip.ok{color:var(--state-success)}.chip.warn{color:var(--state-warn)}.chip.err{color:var(--state-danger)}
+.brand{margin:0;font-size:var(--fs-lg);font-weight:700;padding:var(--sp-2) var(--sp-3) var(--sp-5)}.side .brand:before{content:"●";color:var(--accent);font-size:10px;margin-right:var(--sp-2)}.nav{display:flex;flex-direction:column;gap:2px}.nav button,.source{position:relative;width:100%;border:0;background:none;color:var(--fg-secondary);text-align:left;padding:10px 12px;border-radius:var(--r-md);cursor:pointer;font:inherit;transition:all var(--t-fast) var(--ease)}.nav button:hover,.nav button.active,.source:hover,.source.active{background:var(--accent-soft);color:var(--accent)}.nav button.active:before{content:"";position:absolute;left:0;top:20%;width:3px;height:60%;border-radius:var(--r-full);background:var(--accent)}.section{margin:var(--sp-6) var(--sp-2) var(--sp-2);font-size:var(--fs-xs);color:var(--fg-secondary);text-transform:uppercase;letter-spacing:.08em}.source small{display:block;margin-top:2px;color:var(--fg-tertiary)}
+.top{height:68px;display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--border-default);background:var(--bg-app)}.search{flex:1;min-width:120px;max-width:640px;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:10px 12px;outline:none}.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.button{border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-primary);padding:10px 14px;border-radius:var(--r-md);cursor:pointer;transition:all var(--t-fast) var(--ease)}.button:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}.button.primary{background:var(--accent);border-color:var(--accent);color:var(--fg-inverse)}.top-title{display:none;font-weight:700;white-space:nowrap}.only-narrow{display:none}.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-secondary);border-radius:var(--r-full);padding:8px 14px;cursor:pointer;white-space:nowrap;font-size:var(--fs-sm)}.chip.ok{color:var(--state-success)}.chip.warn{color:var(--state-warn)}.chip.err{color:var(--state-danger)}
 .feed{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--sp-5);scroll-behavior:smooth}.view-head{max-width:980px;width:100%;margin:0 auto var(--sp-4);padding:var(--sp-2) 0 var(--sp-3);display:flex;align-items:flex-end;justify-content:space-between;gap:var(--sp-4)}.view-head h1{margin:0;font-size:var(--fs-xl)}.view-head p{margin:5px 0 0;color:var(--fg-secondary);font-size:var(--fs-sm)}.view-count{color:var(--fg-tertiary);font:var(--fs-xs) var(--font-mono)}.breadcrumbs{display:flex;gap:6px;align-items:center;color:var(--fg-tertiary);font-size:var(--fs-xs);margin-bottom:var(--sp-1)}.breadcrumbs b{color:var(--fg-secondary);font-weight:500}
-.msg{max-width:980px;margin:0 auto var(--sp-3);display:flex;gap:var(--sp-3);padding:var(--sp-4);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);transition:all var(--t-fast) var(--ease)}.msg:hover{border-color:var(--border-strong);transform:translateY(-1px);box-shadow:0 10px 28px rgba(0,0,0,.1)}.avatar{width:48px;height:48px;flex:none;border-radius:var(--r-full);object-fit:cover;background:var(--bg-elevated)}.body{min-width:0;flex:1}.meta{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}.name{font-weight:500}.muted,.time{color:var(--fg-secondary);font-size:var(--fs-sm)}.text{white-space:pre-wrap;word-break:break-word;line-height:1.5;font-size:var(--fs-md);max-width:680px;margin-top:var(--sp-3)}.media{display:block;max-width:min(680px,100%);max-height:560px;border-radius:var(--r-md);margin-top:var(--sp-3);cursor:zoom-in;background:var(--bg-input)}.reply-ref{font-size:var(--fs-sm);color:var(--fg-secondary);border-left:3px solid var(--accent);background:var(--bg-surface-hover);padding:var(--sp-2) var(--sp-3);margin-top:var(--sp-3);border-radius:0 var(--r-sm) var(--r-sm) 0;cursor:pointer}.reply-ref:hover{background:var(--accent-soft);color:var(--fg-primary)}.forward-ref{font-size:var(--fs-sm);color:var(--fg-tertiary);margin-top:var(--sp-2)}.pill,.topic-pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:var(--r-full);padding:3px 8px;font-size:var(--fs-xs)}.deleted{border-color:var(--state-danger)}.deleted .text{opacity:.65}.system-event{max-width:980px;margin:var(--sp-3) auto;text-align:center;color:var(--event-fg);font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-3)}.system-event .event-line{display:inline-block;padding:6px 12px;border:1px solid transparent;background:var(--event-bg);color:var(--event-fg);border-radius:var(--r-full)}
+.msg{max-width:980px;margin:0 auto var(--sp-3);display:flex;gap:var(--sp-3);padding:var(--sp-4);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);transition:all var(--t-fast) var(--ease)}.msg:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}.avatar{width:48px;height:48px;flex:none;border-radius:var(--r-full);object-fit:cover;background:var(--bg-elevated)}.body{min-width:0;flex:1}.meta{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}.name{font-weight:500}.muted,.time{color:var(--fg-secondary);font-size:var(--fs-sm)}.text{white-space:pre-wrap;word-break:break-word;line-height:var(--lh-body);font-size:var(--fs-md);max-width:680px;margin-top:var(--sp-3)}.media{display:block;max-width:min(680px,100%);max-height:560px;border-radius:var(--r-md);margin-top:var(--sp-3);cursor:zoom-in;background:var(--bg-input)}.reply-ref{font-size:var(--fs-sm);color:var(--fg-secondary);border-left:3px solid var(--accent);background:var(--bg-surface-hover);padding:var(--sp-2) var(--sp-3);margin-top:var(--sp-3);border-radius:0 var(--r-sm) var(--r-sm) 0;cursor:pointer}.reply-ref:hover{background:var(--accent-soft);color:var(--fg-primary)}.forward-ref{font-size:var(--fs-sm);color:var(--fg-tertiary);margin-top:var(--sp-2)}.pill,.topic-pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:var(--r-full);padding:3px 8px;font-size:var(--fs-xs)}.deleted{border-color:var(--state-danger)}.deleted .text{opacity:.65}.system-event{max-width:980px;margin:var(--sp-3) auto;text-align:center;color:var(--event-fg);font-size:var(--fs-sm);padding:var(--sp-2) var(--sp-3)}.system-event .event-line{display:inline-block;padding:6px 12px;border:1px solid transparent;background:var(--event-bg);color:var(--event-fg);border-radius:var(--r-full)}
 .focus-target{background:var(--accent-soft);border-color:var(--accent);border-left:4px solid var(--accent);box-shadow:none!important;animation:focusFade 3s var(--ease) forwards}@keyframes focusFade{0%,70%{background:var(--accent-soft)}100%{background:var(--bg-surface)}}.message-actions{display:flex;gap:var(--sp-2);margin-top:var(--sp-3);opacity:0;pointer-events:none;transition:opacity var(--t-fast) var(--ease)}.msg:hover .message-actions{opacity:1;pointer-events:auto}.message-actions .button{padding:5px 8px;font-size:var(--fs-xs)}
-.empty{min-height:240px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:var(--sp-2);color:var(--fg-secondary);padding:var(--sp-7) var(--sp-3)}.empty:before{content:"⌁";font-size:30px;color:var(--fg-tertiary)}.banner{display:none;margin:var(--sp-3) var(--sp-5) 0;padding:var(--sp-3) var(--sp-4);border:1px solid var(--state-danger);background:rgba(200,60,77,.1);border-radius:var(--r-md);color:var(--state-danger)}.pager{max-width:980px;margin:var(--sp-5) auto;display:flex;justify-content:center;align-items:center;gap:var(--sp-2)}.pager button:disabled{opacity:.4;cursor:default}
-.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));grid-auto-flow:dense;gap:var(--sp-3);max-width:1200px;margin:0 auto}.media-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);overflow:hidden;cursor:pointer;min-width:0;transition:all var(--t-fast) var(--ease)}.media-card:hover{border-color:var(--border-strong);transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.1)}.media-card img,.media-card video{display:block;width:100%;height:auto;min-height:120px;object-fit:cover;background:var(--bg-input)}.media-video-placeholder{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;gap:var(--sp-2);background:var(--bg-surface-hover);color:var(--fg-secondary);font-size:var(--fs-sm);position:relative;overflow:hidden}.media-video-placeholder span:first-child{font-size:28px;color:var(--accent)}.media-video-placeholder img.poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.media-video-placeholder span.play-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:20px;z-index:2;pointer-events:none}.media-card .media-info{padding:var(--sp-3)}.media-card .media-meta,.media-card .media-author{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.media-card .media-meta{color:var(--fg-secondary)}.media-card .media-author{margin-top:3px}.media-card{position:relative}.dup-badge{position:absolute;right:8px;top:8px;background:rgba(0,0,0,.72);color:#fff;font-size:var(--fs-xs);font-weight:650;padding:3px 8px;border-radius:var(--r-full);z-index:3;pointer-events:none;letter-spacing:.02em}
-.link-domains{display:flex;gap:var(--sp-2);flex-wrap:wrap;max-width:1200px;margin:0 auto var(--sp-4)}.link-domain{border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-secondary);border-radius:var(--r-full);padding:6px 10px;cursor:pointer}.link-domain.active,.link-domain:hover{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.link-list{max-width:1000px;margin:0 auto}.link-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);padding:var(--sp-4);margin-bottom:var(--sp-3);transition:all var(--t-fast) var(--ease)}.link-card:hover{border-color:var(--border-strong);transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.1)}.link-url{font-weight:650;color:var(--fg-primary);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.link-snippet{margin-top:6px;line-height:1.5;color:var(--fg-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.link-footer{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;margin-top:var(--sp-2);font-size:var(--fs-sm)}.link-footer .button{padding:4px 8px;margin-left:auto}.link-row{display:flex;gap:var(--sp-3);align-items:flex-start}.link-main{min-width:0;flex:1}.link-favicon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent);font-weight:700;flex:none}
+.empty{min-height:240px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:var(--sp-2);color:var(--fg-secondary);padding:var(--sp-7) var(--sp-3)}.empty:before{content:"⌁";width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--accent);background:var(--accent-soft);border-radius:var(--r-full);margin-bottom:var(--sp-2)}.banner{display:none;margin:var(--sp-3) var(--sp-5) 0;padding:var(--sp-3) var(--sp-4);border:1px solid var(--state-danger);background:rgba(200,60,77,.1);border-radius:var(--r-md);color:var(--state-danger)}.pager{max-width:980px;margin:var(--sp-5) auto;display:flex;justify-content:center;align-items:center;gap:var(--sp-2)}.pager button:disabled{opacity:.4;cursor:default}
+.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));grid-auto-flow:dense;align-items:start;gap:var(--sp-3);max-width:1200px;margin:0 auto}.media-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);overflow:hidden;cursor:pointer;min-width:0;transition:all var(--t-fast) var(--ease)}.media-card:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}.media-card img,.media-card video{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover;background:var(--bg-input)}.media-video-placeholder{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;gap:var(--sp-2);background:var(--bg-surface-hover);color:var(--fg-secondary);font-size:var(--fs-sm);position:relative;overflow:hidden}.media-video-placeholder span:first-child{font-size:28px;color:var(--accent)}.media-video-placeholder img.poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.media-video-placeholder span.play-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--overlay-soft);color:#fff;font-size:20px;z-index:var(--z-raised);pointer-events:none}.media-card .media-info{padding:var(--sp-3)}.media-card .media-meta,.media-card .media-author{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.media-card .media-meta{color:var(--fg-secondary)}.media-card .media-author{margin-top:3px}.media-card{position:relative}.dup-badge{position:absolute;right:8px;top:8px;background:var(--overlay-badge);color:#fff;font-size:var(--fs-xs);font-weight:500;padding:3px 8px;border-radius:var(--r-full);z-index:var(--z-raised);pointer-events:none;letter-spacing:.02em}
+.link-domains{display:flex;gap:var(--sp-2);flex-wrap:wrap;max-width:1200px;margin:0 auto var(--sp-4)}.link-domain{border:1px solid var(--border-default);background:var(--bg-surface);color:var(--fg-secondary);border-radius:var(--r-full);padding:6px 10px;cursor:pointer}.link-domain.active,.link-domain:hover{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}.link-list{max-width:1000px;margin:0 auto}.link-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);padding:var(--sp-4);margin-bottom:var(--sp-3);transition:all var(--t-fast) var(--ease)}.link-card:hover{border-color:var(--border-strong);background:var(--bg-surface-hover)}.link-url{font-weight:500;color:var(--fg-primary);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.link-snippet{margin-top:6px;line-height:1.5;color:var(--fg-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.link-footer{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap;margin-top:var(--sp-2);font-size:var(--fs-sm)}.link-footer .button{padding:4px 8px;margin-left:auto}.link-row{display:flex;gap:var(--sp-3);align-items:flex-start}.link-main{min-width:0;flex:1}.link-favicon{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent);font-weight:700;flex:none}
 .edit-history{margin-top:var(--sp-3);padding:var(--sp-3);border-left:3px solid var(--accent);background:var(--bg-surface-hover);border-radius:var(--r-md)}.history-row{padding:var(--sp-2) 0}.edit-timeline{position:relative;padding-left:var(--sp-5)}.edit-timeline:before{content:"";position:absolute;left:7px;top:4px;bottom:4px;width:2px;background:var(--border-default)}.edit-timeline .history-row{position:relative;padding:var(--sp-3);margin-bottom:var(--sp-2);background:var(--bg-surface-hover);border-radius:var(--r-md)}.edit-timeline .history-row:before{content:"";position:absolute;left:-21px;top:16px;width:9px;height:9px;border-radius:50%;background:var(--bg-surface);border:2px solid var(--accent)}.edit-timeline .history-row.current{border:1px solid var(--accent-soft)}.edit-timeline .history-row.current:before{background:var(--accent)}.deleted-meta{margin-top:var(--sp-2);font-size:var(--fs-sm);color:var(--fg-secondary)}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}.stat{background:var(--bg-surface-hover);padding:var(--sp-3);border:1px solid var(--border-default);border-radius:var(--r-md)}.num{font-size:var(--fs-xl);font-weight:750;margin-top:3px}.stat-bar{height:5px;background:var(--border-default);border-radius:var(--r-full);overflow:hidden;margin-top:6px}.stat-bar i{display:block;height:100%;background:var(--accent);border-radius:inherit;width:0}.section,.right-heading{color:var(--fg-secondary)}.right-heading{display:flex;align-items:center;justify-content:space-between;margin:var(--sp-4) 0 var(--sp-2);font-size:var(--fs-sm)}.right-heading span{color:var(--fg-tertiary)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2)}.stat{background:var(--bg-surface-hover);padding:var(--sp-3);border:1px solid var(--border-default);border-radius:var(--r-md)}.num{font-size:var(--fs-xl);font-weight:700;margin-top:3px}.stat-bar{height:5px;background:var(--border-default);border-radius:var(--r-full);overflow:hidden;margin-top:6px}.stat-bar i{display:block;height:100%;background:var(--accent);border-radius:inherit;width:0}.section,.right-heading{color:var(--fg-secondary)}.right-heading{display:flex;align-items:center;justify-content:space-between;margin:var(--sp-4) 0 var(--sp-2);font-size:var(--fs-sm)}.right-heading span{color:var(--fg-tertiary)}
 .right-tabs{display:flex;flex-wrap:wrap;gap:var(--sp-1);border-bottom:1px solid var(--border-default);padding-bottom:var(--sp-2)}.right-tab{flex:1 1 auto;min-width:42px;border:1px solid transparent;background:none;color:var(--fg-secondary);padding:9px 6px;border-radius:var(--r-md);cursor:pointer;font-size:var(--fs-sm)}.right-tab.active,.right-tab:hover{background:var(--accent-soft);color:var(--accent)}.download-summary{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);margin-top:var(--sp-3)}.download-summary>div,.download-item,.job{background:var(--bg-surface-hover);border:1px solid var(--border-default);border-radius:var(--r-md);padding:var(--sp-3)}.download-summary b{display:block;font-size:var(--fs-xl)}.download-summary span,.download-meta{font-size:var(--fs-xs);color:var(--fg-secondary)}.download-actions{display:flex;gap:var(--sp-2);margin:var(--sp-3) 0}.download-actions .button{flex:1;padding:7px 5px;font-size:var(--fs-xs)}.download-item{margin-bottom:var(--sp-2);font-size:var(--fs-sm)}.download-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.download-progress{height:5px;background:var(--border-default);border-radius:var(--r-full);overflow:hidden;margin:7px 0}.download-progress>i{display:block;height:100%;background:var(--accent);width:0}.download-empty{color:var(--fg-secondary);font-size:var(--fs-sm);padding:var(--sp-5) var(--sp-1);text-align:center}.job{font-size:var(--fs-sm);line-height:1.5;margin-bottom:var(--sp-2)}.job .job-state{float:right}.job.running .job-state{color:var(--state-warn)}.job.done .job-state{color:var(--state-success)}.job.error .job-state{color:var(--state-danger)}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:var(--sp-4);z-index:30}.modal-box{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--r-lg);padding:var(--sp-5);width:440px;max-width:94vw;max-height:88vh;overflow:auto}.modal-box h3{margin:0 0 var(--sp-3);font-size:var(--fs-lg)}.modal-box .row{margin:var(--sp-3) 0}.modal-box label{display:block;color:var(--fg-secondary);font-size:var(--fs-sm);margin-bottom:5px}.modal-box input[type=text],.modal-box input[type=number],.modal-box input[type=password]{width:100%;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:9px 11px;outline:none}.modal-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;margin-top:var(--sp-4)}.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:var(--sp-3) 0}.qr-wrap img{width:240px;height:240px;border-radius:var(--r-lg);background:#fff;padding:8px}.qr-hint,.qr-status{color:var(--fg-secondary);font-size:var(--fs-sm);text-align:center;line-height:1.6}.qr-status.ok{color:var(--state-success)}.qr-status.err{color:var(--state-danger)}.checkbox-row{display:flex;align-items:center;gap:var(--sp-2);color:var(--fg-primary);font-size:var(--fs-sm)}.checkbox-row input{accent-color:var(--accent)}
-.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;padding:30px;z-index:80}.lightbox img,.lightbox video{max-width:95vw;max-height:92vh}.close{position:fixed;right:22px;top:18px;font-size:28px;color:#fff;cursor:pointer}.lightbox-nav{position:fixed;top:50%;transform:translateY(-50%);font-size:34px;color:#fff;cursor:pointer;padding:12px;user-select:none}.lightbox-prev{left:16px}.lightbox-next{right:16px}.src-actions{display:flex;gap:var(--sp-1)}.src-actions .button{padding:2px 7px;font-size:var(--fs-xs)}.source-row{display:flex;align-items:center;gap:2px}.source-row .source{flex:1}.addsrc{margin:var(--sp-2) 0 0;width:100%;border:1px dashed var(--border-default);background:none;color:var(--fg-secondary);padding:8px;border-radius:var(--r-md);cursor:pointer}.addsrc:hover{color:var(--fg-primary);border-color:var(--accent)}.help h4{margin:var(--sp-4) 0 6px;font-size:var(--fs-sm);color:var(--accent)}.help p,.help li{color:var(--fg-secondary);font-size:var(--fs-sm);line-height:1.7;margin:4px 0}.help code{background:var(--bg-surface-hover);border:1px solid var(--border-default);border-radius:var(--r-sm);padding:1px 6px;font-size:var(--fs-xs);color:var(--fg-primary)}.help ol,.help ul{padding-left:20px;margin:6px 0}.footer{display:flex;align-items:center;gap:var(--sp-3);padding:7px var(--sp-5);border-top:1px solid var(--border-subtle);color:var(--fg-tertiary);font-size:var(--fs-xs);background:var(--bg-app)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--state-success);display:inline-block;box-shadow:0 0 0 3px rgba(126,226,168,.14)}.theme-toggle{min-width:38px;padding:8px}.source-group{display:flex;align-items:center;justify-content:space-between;color:var(--fg-secondary);font-size:var(--fs-xs);padding:var(--sp-2);cursor:pointer}.source-group:after{content:"⌄"}.source-group.collapsed:after{content:"›"}.source-list.collapsed{display:none}.mobile-nav{display:none}
+.modal{position:fixed;inset:0;background:var(--overlay);display:none;align-items:center;justify-content:center;padding:var(--sp-4);z-index:var(--z-modal)}#loginModal{z-index:var(--z-modal-top)}/* 登录弹窗是账号弹窗的下一步：两个都开着时它必须压在最上面。.modal 统一是 z-index:var(--z-modal)，而同层由 DOM 顺序决定谁在上，loginModal 在 accountsModal 之前，不抬高就会被整个盖住（表现为「点添加账号没反应」）。 */
+.modal-box{background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:var(--r-lg);padding:var(--sp-5);width:440px;max-width:94vw;max-height:88vh;overflow:auto}.modal-box h3{margin:0 0 var(--sp-3);font-size:var(--fs-lg)}.modal-box .row{margin:var(--sp-3) 0}.modal-box label{display:block;color:var(--fg-secondary);font-size:var(--fs-sm);margin-bottom:5px}.modal-box input[type=text],.modal-box input[type=number],.modal-box input[type=password]{width:100%;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:9px 11px;outline:none}.modal-actions{display:flex;gap:var(--sp-2);justify-content:flex-end;margin-top:var(--sp-4)}.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:var(--sp-3) 0}.qr-wrap img{width:240px;height:240px;border-radius:var(--r-lg);background:#fff;padding:8px}.qr-hint,.qr-status{color:var(--fg-secondary);font-size:var(--fs-sm);text-align:center;line-height:1.6}.qr-status.ok{color:var(--state-success)}.qr-status.err{color:var(--state-danger)}.checkbox-row{display:flex;align-items:center;gap:var(--sp-2);color:var(--fg-primary);font-size:var(--fs-sm)}.checkbox-row input{accent-color:var(--accent)}
+.lightbox{position:fixed;inset:0;background:var(--overlay);display:none;align-items:center;justify-content:center;padding:30px;z-index:var(--z-lightbox)}.lightbox img,.lightbox video{max-width:95vw;max-height:92vh}.close{position:fixed;right:22px;top:18px;font-size:28px;color:#fff;cursor:pointer}.lightbox-nav{position:fixed;top:50%;transform:translateY(-50%);font-size:34px;color:#fff;cursor:pointer;padding:12px;user-select:none}.lightbox-prev{left:16px}.lightbox-next{right:16px}.src-actions{display:flex;gap:var(--sp-1);flex-shrink:0}.src-actions .button{padding:2px 7px;font-size:var(--fs-xs)}.source-row{display:flex;align-items:center;gap:2px;min-width:0}.source-row .source{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.button.danger,.addsrc.danger{color:var(--state-danger);border-color:color-mix(in srgb,var(--state-danger) 40%,transparent)}.button.danger:hover,.addsrc.danger:hover{background:color-mix(in srgb,var(--state-danger) 14%,transparent);color:var(--state-danger)}.danger-zone{margin-top:var(--sp-5);padding:var(--sp-4);border:1px solid color-mix(in srgb,var(--state-danger) 35%,transparent);border-radius:var(--r-md);background:color-mix(in srgb,var(--state-danger) 6%,transparent);display:flex;gap:var(--sp-4);align-items:center;justify-content:space-between;flex-wrap:wrap}.danger-zone p{margin:4px 0 0;font-size:var(--fs-xs);max-width:56ch}.danger-actions{display:flex;gap:var(--sp-2);flex-wrap:wrap}.addsrc{margin:var(--sp-2) 0 0;width:100%;border:1px dashed var(--border-default);background:none;color:var(--fg-secondary);padding:8px;border-radius:var(--r-md);cursor:pointer}.addsrc:hover{color:var(--fg-primary);border-color:var(--accent)}.help h4{margin:var(--sp-4) 0 6px;font-size:var(--fs-sm);color:var(--accent)}.help p,.help li{color:var(--fg-secondary);font-size:var(--fs-sm);line-height:1.7;margin:4px 0}.help code{background:var(--bg-surface-hover);border:1px solid var(--border-default);border-radius:var(--r-sm);padding:1px 6px;font-size:var(--fs-xs);color:var(--fg-primary)}.help ol,.help ul{padding-left:20px;margin:6px 0}.footer{display:flex;align-items:center;gap:var(--sp-3);padding:7px var(--sp-5);border-top:1px solid var(--border-subtle);color:var(--fg-tertiary);font-size:var(--fs-xs);background:var(--bg-app)}.status-dot{width:7px;height:7px;border-radius:50%;background:var(--state-success);display:inline-block;box-shadow:0 0 0 3px rgba(126,226,168,.14)}.theme-toggle{min-width:38px;padding:8px}.source-group{display:flex;align-items:center;justify-content:space-between;color:var(--fg-secondary);font-size:var(--fs-xs);padding:var(--sp-2);cursor:pointer}.source-group:after{content:"⌄"}.source-group.collapsed:after{content:"›"}.source-list.collapsed{display:none}.mobile-nav{display:none}
 @media(max-width:1200px){.shell{grid-template-columns:220px minmax(0,1fr) 300px}.feed{padding:var(--sp-4)}}
-@media(max-width:900px){.shell{grid-template-columns:200px minmax(0,1fr)}.right{display:none}body.show-right .right{display:block;position:fixed;left:auto;right:0;top:0;bottom:0;width:min(380px,92vw);z-index:60;border-left:1px solid var(--border-default);box-shadow:-18px 0 48px rgba(0,0,0,.28)}}
-@media(max-width:650px){.shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}.side{border-right:0;border-bottom:1px solid var(--border-default);padding:var(--sp-2)}.brand{display:none}.nav{flex-direction:row;overflow-x:auto;gap:var(--sp-1)}.nav button{white-space:nowrap;width:auto;padding:8px 10px;font-size:var(--fs-sm)}.nav button[data-view="deleted"],.nav button[data-view="edits"],.nav button[data-view="dest"],.nav button[data-view="storage"]{display:none}.section,#sources{display:none}.top{height:auto;flex-wrap:wrap;padding:var(--sp-2)}.top-title{display:none}.top .search{order:10;flex-basis:100%;width:100%}.feed{padding:var(--sp-3) var(--sp-3) 72px}.view-head{padding:var(--sp-1) 0 var(--sp-2)}.view-head h1{font-size:var(--fs-lg)}.view-count{display:none}.msg{padding:var(--sp-3);border-radius:var(--r-md)}.media-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2)}.media-card img,.media-card video{min-height:0}.media-stack{grid-template-columns:repeat(2,minmax(0,1fr))}.message-actions{display:none!important}.right{width:100%!important;top:20%!important;border-radius:var(--r-lg) var(--r-lg) 0 0;border-left:0}.only-narrow{display:inline-flex}.footer{display:none}.mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(3,1fr);left:0;right:0;bottom:0;height:58px;background:var(--bg-elevated);border-top:1px solid var(--border-default);z-index:70;padding-bottom:env(safe-area-inset-bottom)}.mobile-nav button{border:0;background:none;color:var(--fg-secondary);font:var(--fs-xs) var(--font-sans);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}.mobile-nav button:first-child{color:var(--accent)}}
+@media(max-width:900px){.shell{grid-template-columns:200px minmax(0,1fr)}.right{display:none}body.show-right .right{display:block;position:fixed;left:auto;right:0;top:0;bottom:0;width:min(400px,94vw);z-index:var(--z-drawer);border-left:1px solid var(--border-default);box-shadow:-18px 0 48px rgba(0,0,0,.28)}}
+@media(max-width:650px){.shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}.side{border-right:0;border-bottom:1px solid var(--border-default);padding:var(--sp-2)}.brand{display:none}.nav{flex-direction:row;overflow-x:auto;gap:var(--sp-1)}.nav{background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--r-full);padding:3px}.nav button{white-space:nowrap;width:auto;padding:7px 11px;font-size:var(--fs-sm);border-radius:var(--r-full)}.nav button.active{background:var(--accent-soft)}.nav button[data-view="deleted"],.nav button[data-view="edits"],.nav button[data-view="dest"],.nav button[data-view="storage"]{display:none}.section,#sources{display:none}.top{height:auto;flex-wrap:wrap;padding:var(--sp-2)}.top-title{display:none}.top .search{order:10;flex-basis:100%;width:100%}.feed{padding:var(--sp-3) var(--sp-3) 84px}.view-head{padding:var(--sp-1) 0 var(--sp-2)}.view-head h1{font-size:var(--fs-lg)}.view-count{display:none}.msg{padding:var(--sp-3);border-radius:var(--r-md)}.media-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2)}.media-card img,.media-card video{min-height:0}.media-stack{grid-template-columns:repeat(2,minmax(0,1fr))}.message-actions{display:none!important}.right{width:100%!important;top:20%!important;border-radius:var(--r-lg) var(--r-lg) 0 0;border-left:0}.only-narrow{display:inline-flex}.footer{display:none}.mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(3,1fr);left:0;right:0;bottom:0;height:64px;background:var(--bg-elevated);border-top:1px solid var(--border-default);z-index:var(--z-nav);padding-bottom:env(safe-area-inset-bottom)}.mobile-nav button{border:0;background:none;color:var(--fg-secondary);font:var(--fs-sm) var(--font-sans);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:var(--r-md);margin:4px 6px}.mobile-nav button:active{background:var(--accent-soft)}.mobile-nav button:first-child{color:var(--accent);background:var(--accent-soft)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:0ms!important;transition-delay:0ms!important}}
 
 .media-stack{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-2);max-width:680px;margin-top:var(--sp-3)}.media-stack .media{width:100%;aspect-ratio:1;object-fit:cover;margin:0}.error-kind{font-size:var(--fs-xs);border-radius:var(--r-full);padding:3px 7px}.error-kind.flood_wait{background:rgba(240,179,126,.12);color:var(--state-warn)}.error-kind.timeout{background:rgba(120,183,255,.12);color:var(--state-info)}.error-kind.not_found,.error-kind.permission{background:rgba(240,128,143,.12);color:var(--state-danger)}
-.detail-wrap{max-width:900px;margin:0 auto;padding-bottom:var(--sp-7)}.detail-actions{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-3)}.detail-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);overflow:hidden}.detail-head{display:flex;gap:var(--sp-3);padding:var(--sp-5);border-bottom:1px solid var(--border-subtle)}.detail-author{min-width:0;flex:1}.detail-author-name{font-size:var(--fs-lg);font-weight:650}.detail-meta{margin-top:5px;color:var(--fg-secondary);font-size:var(--fs-sm);line-height:1.5}.detail-badges{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-2)}.detail-body{padding:var(--sp-5)}.detail-text{font-size:var(--fs-lg);line-height:1.65;white-space:pre-wrap;word-break:break-word;max-width:760px}.detail-media{margin-top:var(--sp-4);max-width:760px}.detail-media .media{max-width:100%;max-height:720px;border-radius:var(--r-lg)}.detail-context{margin-top:var(--sp-4);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm)}.detail-context b{display:block;margin-bottom:4px}.detail-context-label{color:var(--accent);font-size:var(--fs-xs);margin-bottom:4px}.forward-detail{display:flex;gap:var(--sp-2);align-items:flex-start;border-left:3px solid var(--border-strong);background:var(--bg-surface-hover);border-radius:0 var(--r-md) var(--r-md) 0}.forward-detail>div{display:flex;gap:6px;flex-wrap:wrap}.detail-facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border-subtle)}.detail-facts div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);min-width:0}.detail-facts div:nth-child(4n){border-right:0}.detail-facts span{display:block;color:var(--fg-tertiary);font-size:var(--fs-xs);margin-bottom:3px}.detail-facts b{font:var(--fs-sm) var(--font-mono);word-break:break-all}.detail-section{margin-top:var(--sp-5);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-lg);padding:var(--sp-5)}.detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3)}.detail-section-head h2{font-size:var(--fs-lg);margin:0}.detail-section-head span{color:var(--fg-tertiary);font-size:var(--fs-sm)}.detail-timeline{position:relative;padding-left:var(--sp-5)}.detail-timeline:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--border-default)}.detail-timeline .history-row{position:relative;background:var(--bg-surface-hover);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2)}.detail-timeline .history-row:before{content:"";position:absolute;left:-22px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--bg-surface);border:2px solid var(--accent)}.detail-timeline .history-row.current{border-color:var(--accent);background:var(--accent-soft)}.detail-timeline .history-row.current:before{background:var(--accent)}.detail-version{display:flex;justify-content:space-between;gap:var(--sp-2);align-items:center}.detail-version-text{white-space:pre-wrap;line-height:1.55;margin-top:var(--sp-2);color:var(--fg-primary)}.detail-event{padding:var(--sp-6) var(--sp-5);text-align:center;border-bottom:1px solid var(--border-subtle)}.detail-event .event-line{display:block;background:var(--event-bg);color:var(--event-fg);border-radius:var(--r-full);padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-2)}.detail-empty,.detail-error{color:var(--fg-secondary);padding:var(--sp-5);text-align:center}.detail-error{max-width:600px;margin:var(--sp-7) auto;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card)}.detail-error p{margin:var(--sp-2) 0 var(--sp-4)}
+.detail-wrap{max-width:900px;margin:0 auto;padding-bottom:var(--sp-7)}.detail-actions{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-bottom:var(--sp-3)}.detail-card{background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);overflow:hidden}.detail-head{display:flex;gap:var(--sp-3);padding:var(--sp-5);border-bottom:1px solid var(--border-subtle)}.detail-author{min-width:0;flex:1}.detail-author-name{font-size:var(--fs-lg);font-weight:500}.detail-meta{margin-top:5px;color:var(--fg-secondary);font-size:var(--fs-sm);line-height:1.5}.detail-badges{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-2)}.detail-body{padding:var(--sp-5)}.detail-text{font-size:var(--fs-lg);line-height:1.65;white-space:pre-wrap;word-break:break-word;max-width:760px}.detail-media{margin-top:var(--sp-4);max-width:760px}.detail-media .media{max-width:100%;max-height:720px;border-radius:var(--r-lg)}.detail-context{margin-top:var(--sp-4);padding:var(--sp-3) var(--sp-4);font-size:var(--fs-sm)}.detail-context b{display:block;margin-bottom:4px}.detail-context-label{color:var(--accent);font-size:var(--fs-xs);margin-bottom:4px}.forward-detail{display:flex;gap:var(--sp-2);align-items:flex-start;border-left:3px solid var(--border-strong);background:var(--bg-surface-hover);border-radius:0 var(--r-md) var(--r-md) 0}.forward-detail>div{display:flex;gap:6px;flex-wrap:wrap}.detail-facts{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border-subtle)}.detail-facts div{padding:var(--sp-3) var(--sp-4);border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle);min-width:0}.detail-facts div:nth-child(4n){border-right:0}.detail-facts span{display:block;color:var(--fg-tertiary);font-size:var(--fs-xs);margin-bottom:3px}.detail-facts b{font:var(--fs-sm) var(--font-mono);word-break:break-all}.detail-section{margin-top:var(--sp-5);background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-lg);padding:var(--sp-5)}.detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-3)}.detail-section-head h2{font-size:var(--fs-lg);margin:0}.detail-section-head span{color:var(--fg-tertiary);font-size:var(--fs-sm)}.detail-timeline{position:relative;padding-left:var(--sp-5)}.detail-timeline:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--border-default)}.detail-timeline .history-row{position:relative;background:var(--bg-surface-hover);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-2)}.detail-timeline .history-row:before{content:"";position:absolute;left:-22px;top:17px;width:8px;height:8px;border-radius:50%;background:var(--bg-surface);border:2px solid var(--accent)}.detail-timeline .history-row.current{border-color:var(--accent);background:var(--accent-soft)}.detail-timeline .history-row.current:before{background:var(--accent)}.detail-version{display:flex;justify-content:space-between;gap:var(--sp-2);align-items:center}.detail-version-text{white-space:pre-wrap;line-height:1.55;margin-top:var(--sp-2);color:var(--fg-primary)}.detail-event{padding:var(--sp-6) var(--sp-5);text-align:center;border-bottom:1px solid var(--border-subtle)}.detail-event .event-line{display:block;background:var(--event-bg);color:var(--event-fg);border-radius:var(--r-full);padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-2)}.detail-empty,.detail-error{color:var(--fg-secondary);padding:var(--sp-5);text-align:center}.detail-error{max-width:600px;margin:var(--sp-7) auto;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card)}.detail-error p{margin:var(--sp-2) 0 var(--sp-4)}
 @media(max-width:650px){.detail-head,.detail-body,.detail-section{padding:var(--sp-4)}.detail-text{font-size:var(--fs-md)}.detail-facts{grid-template-columns:repeat(2,1fr)}.detail-facts div:nth-child(4n){border-right:1px solid var(--border-subtle)}.detail-facts div:nth-child(2n){border-right:0}.detail-actions .button{flex:1;text-align:center}.detail-version{align-items:flex-start;flex-direction:column}}
 .reactions{display:flex;gap:var(--sp-1);flex-wrap:wrap;margin-top:var(--sp-3)}
 .reaction{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--accent);border-radius:var(--r-full);padding:3px 9px;font-size:var(--fs-sm)}
@@ -90,7 +91,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible,summary:focus-visi
 .msg-video{position:relative;display:block;max-width:min(680px,100%);margin-top:var(--sp-3);border-radius:var(--r-md);overflow:hidden;background:var(--bg-input);cursor:pointer;border:1px solid var(--border-default)}
 .msg-video.has-poster{aspect-ratio:16/9}
 .msg-video .poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.msg-video .play-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:22px;z-index:2;pointer-events:none;backdrop-filter:blur(2px)}
+.msg-video .play-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--overlay-soft);color:#fff;font-size:22px;z-index:var(--z-raised);pointer-events:none;backdrop-filter:blur(2px)}
 .msg-video .vid-label{display:flex;align-items:center;justify-content:center;padding:var(--sp-5) 0;color:var(--fg-secondary);font-size:var(--fs-sm)}
 .msg-video:hover{border-color:var(--border-strong)}
 /* 任务卡片：消息回填完成 ≠ 媒体下载完成，必须分开显示 */
@@ -101,3 +102,632 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible,summary:focus-visi
 .job-bar>i{display:block;height:100%;background:var(--state-warn);width:0;transition:width var(--t-base) var(--ease)}
 .job.media-busy{border-color:var(--state-warn)}
 .job.media-busy .job-state{color:var(--state-warn)}
+
+/* ── 登录方式切换 ─────────────────────────────────────────────────────────────
+   扫码 / 手机号 / session 三条路径平权并列，不是「主入口 + 隐藏彩蛋」：
+   扫码需要另一台已登录设备，手机号需要能收码，session 需要事先导出——
+   任何一条都可能不可用，所以三者放在同一层级，用 tab 而不是下拉菜单。 */
+.login-tabs{display:flex;gap:3px;padding:3px;margin-bottom:var(--sp-4);background:var(--bg-input);border:1px solid var(--border-default);border-radius:var(--r-md)}
+.login-tab{flex:1;padding:7px 10px;border:0;background:transparent;color:var(--fg-secondary);font-size:var(--fs-sm);font-family:inherit;border-radius:calc(var(--r-md) - 2px);cursor:pointer;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.login-tab:hover{color:var(--fg-primary)}
+.login-tab.active{background:var(--bg-elevated);color:var(--fg-primary);box-shadow:0 1px 2px rgba(0,0,0,.28)}
+.login-tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+/* tel 与 textarea 此前没有输入框样式：手机号输入会退回浏览器默认外观，
+   在一个全深色的弹窗里非常突兀。补齐，与 text/password 保持同一套参数。 */
+.modal-box input[type=tel],.modal-box textarea{width:100%;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:9px 11px;outline:none;font-family:inherit;font-size:var(--fs-md)}
+.modal-box input[type=tel]:focus,.modal-box textarea:focus{border-color:var(--accent)}
+.modal-box textarea{resize:vertical;min-height:78px;font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.5;word-break:break-all}
+
+/* 登录弹窗顶部对齐：三个面板（扫码/手机号/session）高度差接近 200px，
+   居中布局会让弹窗在切换 tab 时整体上下跳，用户视线刚要落在输入框上就被
+   带走了。固定顶边、向下生长，切换时只有底部在动。 */
+#loginModal{align-items:flex-start}
+#loginModal .modal-box{margin-top:max(24px,7vh)}
+
+/* ══════════════════════════════════════════════════════════════════════
+   批次 4 · 组件层
+   ──────────────────────────────────────────────────────────────────────
+   这一层存在的唯一理由：把散在 50+ 处内联 style 里的尺寸/间距决策收回到
+   一套类上。归并前实测的重复：`padding:6px 8px` 32 处、`width:100%` 18 处、
+   `margin-top:8px;display:grid;gap:8px` 3 处、同一份表格样式写了两遍。
+   判据不变：改一处按钮高度，不该再 grep 半个 HTML 文件。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── 按钮尺寸档 ────────────────────────────────────────────────────────
+   只有三档，不是四档：sm（表格行内/次要）、xs（卡片角标）、默认。
+   原来的 4px/5px/6px 三种微调差异肉眼不可辨，合并成 xs 一档。 */
+.button.sm{padding:6px 10px;font-size:var(--fs-sm)}
+.button.xs{padding:4px 8px;font-size:var(--fs-xs)}
+.button.block{width:100%}
+
+/* 表单/面板里的一组控件：8px 竖排间距，是 --sp-2 档 */
+.stack{display:grid;gap:var(--sp-2)}
+.stack.tight{gap:6px}
+.stack.gap-3{gap:var(--sp-3)}
+
+/* 工具条：标题组在左、操作组在右，窄屏自动折行。
+   原来同一个 flex 组合写了两遍（imgs/links 两处视图），现在只有一份。 */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  justify-content:space-between;padding:10px 0 14px}
+.toolbar-group{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+/* 文字档：13px 次要信息 / 11px 注解。两者原来都用 var(--muted)，旧别名已删。 */
+.meta-sm{font-size:var(--fs-sm);color:var(--fg-secondary)}
+.meta-xs{font-size:var(--fs-xs);color:var(--fg-secondary)}
+
+/* 分隔线（表格行之间、面板之间） */
+.divider{border-top:1px solid var(--border-default)}
+
+/* ── 数据表格 ──────────────────────────────────────────────────────────
+   编号/存储两个视图各写了一遍 <table> 的内联样式，参数还不完全一样。
+   单元格 padding 统一走 td，不再逐个 <td> 标。 */
+.table-scroll{overflow-x:auto}
+.data-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.data-table th{text-align:left;color:var(--fg-secondary);font-size:var(--fs-xs);
+  font-weight:500;padding:6px 8px}
+.data-table td{padding:6px 8px}
+.data-table .nowrap{white-space:nowrap}
+.data-table .cell-wide{max-width:560px}
+.data-table .cell-mid{max-width:180px}
+
+/* 单行省略。宽度变体用 cell-* 组合，不再为 220/560 各造一个类名。 */
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 统计数字（存储视图的容量卡） */
+.stat-num{font-size:22px;font-weight:700;margin:4px 0}
+
+/* 卡片网格：auto-fill 240px，与 .media-grid(220px) 区分开 */
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--sp-3)}
+
+/* aside/details 里的 summary：去掉默认三角，保留键盘可达 */
+summary.plain{cursor:pointer;color:var(--fg-secondary)}
+summary.plain:hover{color:var(--fg-primary)}
+
+/* 登录面板里的左对齐提示（qr-hint 默认居中，表单下方要左对齐） */
+.hint-left{text-align:left;margin-top:6px}
+
+/* 行内提示槽：预留高度避免内容出现时跳动 */
+.msg-slot{margin-top:var(--sp-2);min-height:16px}
+
+/* 间距 utility（只保留实际用到的，不复制 Tailwind） */
+.mt-1{margin-top:6px}
+.mt-2{margin-top:var(--sp-2)}
+.mt-3{margin-top:10px}
+.mt-4{margin-top:var(--sp-3)}
+.mb-3{margin-bottom:10px}
+.zero{margin:0}
+
+/* 批次 4 补充：替换内联 style 时用到的最小 utility */
+.w-full{width:100%}
+.ml-auto{margin-left:auto}
+.float-right{float:right}
+.py-1{padding:var(--sp-1) 0}
+.py-2{padding:var(--sp-2) 0}
+.pad-3{padding:10px}
+.lh-15{line-height:1.5}
+.lh-17{line-height:1.7}
+.fs-12{font-size:12px}
+.pointer{cursor:pointer}
+.no-pointer{cursor:default}
+.flex-row-4{display:flex;gap:4px}
+
+/* 401 页：原来用的是一段内联 style，里面写死了 #e9edf5 / #080a0f 两个色值，
+   和 token 体系脱节——换主题时它永远是深色。改成类，跟 token 走。 */
+.fatal-page{padding:60px 30px;font:15px var(--font-sans);color:var(--fg-primary);
+  background:var(--bg-app);line-height:1.8}
+
+/* 可滚动的选择框（聊天列表）：原来 border-radius:9px 是裸值，
+   而圆角阶梯里没有 9 这一档，取最近的 --r-card。 */
+.scroll-box{max-height:240px;overflow:auto;border:1px solid var(--border-default);
+  border-radius:var(--r-card);background:var(--bg-surface-hover)}
+
+/* 统计卡用的 240px 版媒体网格（默认 .media-grid 是 220px） */
+.media-grid.grid-240{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.pad-2{padding:var(--sp-2)}
+
+/* 媒体下载进度在任务列表里只出现一次（原来每个 job 卡片各写一遍，
+   8 个任务就是 8 份同样的「媒体 21/93」）。 */
+.job-media-summary{margin-bottom:var(--sp-2);padding:var(--sp-2) var(--sp-3);
+  background:var(--bg-surface-hover);border:1px solid var(--border-default);
+  border-radius:var(--r-md);color:var(--fg-secondary);font-size:var(--fs-xs)}
+
+/* 表格横向滚动时把最后一列（操作）钉在右侧。
+   编号表 9 列在 824px 容器里必然溢出（实测 scrollWidth 855），
+   不钉住的话「删除」被推到可视区外，用户会以为这一行没有删除入口。 */
+/* 只在宽屏钉住：390 宽时表格可视区只有 366px，钉住的操作列会盖住
+   「大小/状态/文件/来源」4 列，用户滑也看不全。窄屏让它跟着一起滚。 */
+@media(min-width:901px){
+  .data-table th:last-child,.data-table td:last-child{
+    position:sticky;right:0;background:var(--bg-app);
+    box-shadow:-10px 0 12px -10px rgba(0,0,0,.6)}
+}
+
+/* 媒体网格是缩略图墙（点击看原图），统一 1:1 才排得整齐。
+   但卡片里的 <img> 带着真实宽高比（竖图会是 582/1280），内联样式优先级最高，
+   只能用 !important 压过去。消息视图不做这个限制——聊天里的图要按原比例显示，
+   那里 `aspect-ratio` 内联是对的。 */
+.media-grid .media-card img,
+.media-grid .media-card video{aspect-ratio:1!important;height:auto!important}
+
+/* 会话过期横幅：媒体元素拿到 401 时由 index.html 的探针插入。
+   fixed 在顶部而不是插进 body 流的末尾——appendChild 到 body 的位置
+   在页面最下方，用户滚到哪儿都看不见。 */
+.session-banner{
+  position:fixed;top:0;left:0;right:0;z-index:var(--z-toast);
+  display:flex;align-items:center;justify-content:center;gap:var(--sp-3);
+  padding:10px var(--sp-5);
+  background:color-mix(in srgb,var(--state-danger) 18%,var(--bg-surface));
+  border-bottom:1px solid color-mix(in srgb,var(--state-danger) 45%,transparent);
+  color:var(--fg-primary);font-size:var(--fs-sm);
+}
+.session-banner a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+/* ── 内置用户手册（archive/web/index.html 的 #helpModal，由 tools/gen_help.py 生成） ──
+   手册里全是表格：撤回边界、功能一览、激活页说明、搜索语法。
+   没有这几条规则，表格会挤成一段连续文字，客户第一眼就认为这份说明是随便写的。 */
+.modal-box.help{width:680px;max-width:min(94vw,680px)}
+.help h5{margin:var(--sp-3) 0 4px;font-size:var(--fs-xs);color:var(--fg-secondary);font-weight:700;letter-spacing:.2px}
+.help table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:var(--fs-xs);table-layout:auto}
+.help thead th{background:var(--bg-surface-hover);color:var(--fg-primary);font-weight:600;text-align:left;white-space:nowrap}
+.help th,.help td{border:1px solid var(--border-default);padding:6px 8px;text-align:left;vertical-align:top;color:var(--fg-secondary);line-height:1.6}
+.help td code,.help th code{white-space:nowrap}
+.help blockquote{margin:8px 0;padding:6px 10px;border-left:2px solid var(--accent);border-radius:0 var(--r-sm) var(--r-sm) 0;background:var(--bg-surface-hover)}
+.help blockquote p{margin:0;font-size:var(--fs-xs)}
+.help hr{border:none;border-top:1px solid var(--border-subtle);margin:14px 0}
+.help strong{color:var(--fg-primary)}
+@media (max-width:560px){.help thead th,.help td code,.help th code{white-space:normal}}
+
+/* ══════════════════════════════════════════════════════════════════════
+   ui-spec v2（2026-10-31）· 打磨型重设计追加层
+   依据 docs/ui-spec.md；只增样式不改行为。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 加载骨架条：轮询/翻页期间的占位（类已备好，渲染层后续接入） */
+.loading-row{height:40px;border-radius:var(--r-md);
+  background:linear-gradient(100deg,var(--bg-surface-hover) 40%,var(--bg-elevated) 50%,var(--bg-surface-hover) 60%);
+  background-size:200% 100%;animation:shimmer 1.2s linear infinite;margin:0 auto var(--sp-3);max-width:980px}
+@keyframes shimmer{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.loading-row{animation:none}}
+
+/* 顶栏视觉分组：搜索组与操作组之间留出呼吸 */
+.top{gap:var(--sp-3)}
+.search-wrap{flex:1;display:flex;gap:var(--sp-2);max-width:680px}
+
+/* 触控按压反馈（spec §6 --t-instant） */
+.button:active,.chip:active,.nav button:active,.right-tab:active,.topic-chip:active{transition-duration:var(--t-instant);transform:scale(.98)}
+@media(prefers-reduced-motion:reduce){.button:active,.chip:active,.nav button:active,.right-tab:active,.topic-chip:active{transform:none}}
+
+/* ══════════════════════════════════════════════════════════════════════
+   手机 App 化适配层
+   桌面（>650px）完全不受影响：触控与滚动属性是交互层面的，不改变布局；
+   其余全部锁在 max-width:650px 内。
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 交互层全局（桌面也更跟手，不改变任何盒模型） */
+html{-webkit-tap-highlight-color:transparent}
+/* Toast：位置从内联样式搬到这里，才能在手机断点里把安全区算进去。
+   bottom 保持桌面原值 —— 桌面底部有 .footer，压上去会盖住它。 */
+.toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:var(--fg-primary);color:var(--bg-app);padding:var(--sp-2) 14px;border-radius:var(--r-md);z-index:var(--z-toast);font-size:var(--fs-sm);box-shadow:var(--shadow-md);max-width:88vw;text-align:center;line-height:1.45}
+/* 抽屉的遮罩与下拉把手是手机专用元素，桌面上必须不存在 —— 否则 scrim 的
+   全屏 overlay 会把整个界面盖住。手机样式在下面 650px 块里再打开。 */
+.sheet-scrim{display:none}
+.sheet-grip{display:none}
+button,a,.chip,.topic-chip,.link-domain,.source{touch-action:manipulation}
+.feed{overscroll-behavior-y:contain}
+
+@media(max-width:650px){
+
+  /* ── 安全区 ──────────────────────────────────────────────
+     viewport 已声明 viewport-fit=cover，env() 在真机上返回非零值。
+     全局 *{box-sizing:border-box} 让 height:64px + padding-bottom:env()
+     从按钮空间里扣掉安全区 —— 手势条机型（inset≈34px）上按钮只剩 30px。
+     改 content-box：内容区固定 64px，安全区加在外面。 */
+  .mobile-nav{box-sizing:content-box;height:60px;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .mobile-nav button{min-height:56px}
+  /* Toast 落在底栏之上，而不是被压在下面。 */
+  .toast{bottom:calc(60px + env(safe-area-inset-bottom,0px) + var(--sp-4))}
+  /* 内容底部留白必须跟着底栏实际高度走。写死 84px 在手势条机型上会遮住
+     最后一条消息。 */
+  .feed{padding-bottom:calc(60px + env(safe-area-inset-bottom,0px) + var(--sp-5))}
+  /* 401 / 会话失效时这是唯一的用户可见提示，不能让刘海吃掉。 */
+  .session-banner{padding-top:calc(10px + env(safe-area-inset-top,0px))}
+  /* 灯箱与模态框的关闭按钮避开刘海。 */
+  .lightbox{padding-top:env(safe-area-inset-top,0px)}
+  .modal-box{margin-top:env(safe-area-inset-top,0px)}
+
+  /* ── dvh ──────────────────────────────────────────────
+     100vh 在手机上含被工具栏/键盘遮挡的部分。shell 早已用 100dvh，
+     这三处漏了。 */
+  .lightbox img{max-height:calc(92dvh - env(safe-area-inset-top,0px))}
+  .modal-box{max-height:88dvh}
+  .acc-list{max-height:55dvh}
+
+  /* ── 触控目标 ≥44px ─────────────────────────────────────
+     实测原值：.nav button 30px、.topic-chip 31px、.link-domain 31px、
+     .chip 34px、.button 39px、.src-actions .button 20px、.button.xs 26px。
+     全部低于 Apple HIG 44px / Material 48dp 下限。 */
+  .nav button{padding:11px 16px;font-size:var(--fs-md);min-height:44px}
+  .chip{padding:11px 16px;min-height:44px}
+  .button{padding:12px 16px;min-height:44px}
+  .button.xs{padding:10px 14px;min-height:44px}
+  .button.sm{padding:11px 15px;min-height:44px}
+  .topic-chip{padding:10px 14px;min-height:44px}
+  .link-domain{padding:10px 14px;min-height:44px}
+  .right-tab{padding:12px 10px;min-height:44px}
+  .theme-toggle{min-width:44px;min-height:44px}
+  /* ⚙ ↻ ✕ 三连：原来 2px 7px 只有 20px 高，手指根本点不中。 */
+  .src-actions .button{padding:10px 12px;font-size:var(--fs-md);min-height:44px}
+  .src-actions{gap:var(--sp-2)}
+  .pop-list button{padding:12px 16px;min-height:44px}
+  .close{padding:10px 14px;min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+  .lightbox-nav{padding:16px;font-size:34px;min-height:60px;min-width:60px}
+
+  /* ── :hover 粘滞 ───────────────────────────────────────
+     触屏没有"移开指针"，点过的元素会一直保持 hover 妆效。把这四处
+     还原成普通态（值取自各自的基础规则），按下反馈交给 :active。 */
+  .msg:hover{background:var(--bg-surface);border-color:var(--border-default)}
+  .media-card:hover{background:var(--bg-surface);border-color:var(--border-default)}
+  .link-card:hover{background:var(--bg-surface);border-color:var(--border-default)}
+  .reply-ref:hover{background:var(--bg-surface-hover);color:var(--fg-secondary)}
+  /* 上面只还原了四条。剩下的 hover 一样会粘住 —— 尤其
+     .link-domain:hover 和 .source:hover 直接给了"选中"的配色，点完
+     一直亮着，看起来像筛选生效了但列表没变。全部还原成各自的基础态
+     （值取自 theme.css 里对应的非 hover 规则），按下反馈交给 :active。 */
+  .button:hover{border-color:var(--border-default);background:var(--bg-surface)}
+  .button.danger:hover{background:var(--bg-surface)}
+  .addsrc:hover{color:var(--fg-secondary);border-color:var(--border-default)}
+  .addsrc.danger:hover{background:none}
+  .topic-chip:hover{border-color:var(--border-default);color:var(--fg-secondary)}
+  .topic-pill:hover{filter:none}
+  .right-tab:hover{background:none;color:var(--fg-secondary)}
+  .link-domain:hover{color:var(--fg-secondary);background:var(--bg-surface);border-color:var(--border-default)}
+  .login-tab:hover{color:var(--fg-secondary)}
+  .msg-video:hover{border-color:var(--border-default)}
+  .source:hover{background:none;color:var(--fg-secondary)}
+  a:hover{background:none}
+  summary:hover,summary.plain:hover{color:var(--fg-secondary)}
+  /* hover 去掉之后这些元素在触屏上就完全没有反馈了。:active 在触屏上
+     是可靠的（按下即生效，抬手即消失），补一个统一的按下底色。
+     .button/.chip/.right-tab/.topic-chip 已有 scale 反馈，不重复。 */
+  .msg:active,.media-card:active,.link-card:active,.reply-ref:active,
+  .topic-pill:active,.link-domain:active,.source:active,.addsrc:active,
+  .msg-video:active,.login-tab:active,a:active,summary.plain:active{
+    background:var(--bg-surface-hover)}
+
+  /* ── 消息操作在手机上可达 ─────────────────────────────
+     原来 .message-actions 在 ≤650px 是 display:none!important，且桌面
+     靠 .msg:hover 显形 —— 手机上两个条件都不成立，"删除/复制链接/查看原文"
+     完全不可达。改为长按（JS 加 .msg-open）时展开。 */
+  .message-actions{display:none!important;opacity:1}
+  .msg.msg-open .message-actions{display:flex!important;flex-wrap:wrap;gap:var(--sp-2)}
+  .msg.msg-open{outline:2px solid var(--accent);outline-offset:-2px}
+  .message-actions .button{flex:1 1 auto;justify-content:center}
+
+  /* ── 「更多」改成真正的 bottom sheet ──────────────────
+     原来 top:20%!important、无遮罩、背后内容仍可滚、z-index 低于底栏。 */
+  .right{
+    position:fixed!important;top:auto!important;bottom:0;left:0;right:0;
+    width:100%!important;max-height:82dvh;height:auto;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;border-left:0;
+    padding-bottom:calc(var(--sp-4) + env(safe-area-inset-bottom,0px));
+    transform:translateY(100%);transition:transform var(--t-base) var(--ease);
+    z-index:200;display:block!important;overflow:auto;overscroll-behavior:contain
+  }
+  body.show-right .right{transform:translateY(0)}
+  /* 遮罩：点击收起，也是滚动锁的视觉依据。 */
+  .sheet-scrim{position:fixed;inset:0;background:var(--overlay);z-index:190;display:none}
+  body.show-right .sheet-scrim{display:block}
+  /* 顶部的下拉关闭把手 */
+  .sheet-grip{display:flex;justify-content:center;padding:var(--sp-2) 0;margin-bottom:var(--sp-2);touch-action:none}
+  .sheet-grip::before{content:"";width:36px;height:4px;border-radius:2px;background:var(--border-strong)}
+
+  /* ── 底部确认条：代替 confirm() / prompt() ──────────────
+     系统的对话框画在屏幕正中，单手拇指够不到，而且跟 App 的配色、
+     字体完全无关。这里做成跟「更多」抽屉同一套语言的底部动作条。 */
+  .ask-scrim{position:fixed;inset:0;background:var(--overlay);z-index:210;
+    display:flex;align-items:flex-end;justify-content:center}
+  .ask-sheet{
+    width:100%;max-width:420px;background:var(--bg-elevated);
+    border-radius:var(--r-lg) var(--r-lg) 0 0;
+    padding:var(--sp-2) var(--sp-4) calc(var(--sp-4) + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -18px 48px rgba(0,0,0,.28);
+    animation:ask-in var(--t-base) var(--ease)
+  }
+  .ask-msg{white-space:pre-line;color:var(--fg-primary);font-size:var(--fs-sm);
+    line-height:1.6;margin:0 0 var(--sp-3)}
+  .ask-input{width:100%;min-height:48px;box-sizing:border-box;font-size:16px;
+    background:var(--bg-input);color:var(--fg-primary);
+    border:1px solid var(--border-default);border-radius:var(--r-md);
+    padding:0 var(--sp-3);margin-bottom:var(--sp-3)}
+  .ask-actions{display:flex;gap:var(--sp-2)}
+  .ask-actions .button{flex:1;min-height:48px}
+
+  /* ── 底栏 5 格 ──────────────────────────────────────
+     原来只有 3 格（消息/媒体/更多），10 个视图里 4 个被 display:none
+     藏掉、其余全塞进「更多」。 */
+  .mobile-nav{grid-template-columns:repeat(5,1fr)}
+  .mobile-nav button{margin:0 2px}
+  /* 高亮原来靠 :first-child 硬写，切到别的视图后第一个格子永远亮着。
+     改成跟 .active 走（由 syncMobileNav() 维护）。 */
+  .mobile-nav button:first-child{color:var(--fg-secondary);background:none}
+  .mobile-nav button.active{color:var(--accent);background:var(--accent-soft)}
+  .sheet-grip{display:flex}
+
+  /* ── 滚动 ──────────────────────────────────────────
+     scroll-behavior:smooth 会让程序化滚动（加载更多后的定位）不跟手。 */
+  .feed{scroll-behavior:auto}
+
+  /* ── 分页：手机上放弃滑块 ─────────────────────────────
+     桌面那套「上一页/下一页 + range 滑块 + 页码输入框」在手机上既不好点
+     也不直观。滑块与页码框收起，交给底部的「加载更多」大按钮（44px）。 */
+  .pager{flex-direction:column;gap:var(--sp-3);align-items:stretch}
+  .pager input[type=range],.pager .pager-jump{display:none}
+  .pager button{min-height:48px;flex:1 1 auto}
+  .pager-count{text-align:center}
+
+  /* 加载更多的独立占位（JS 插入的 sentinel 包裹层） */
+  .load-more-wrap{padding:var(--sp-4) 0 var(--sp-5);text-align:center}
+  .load-more{width:100%;max-width:420px;min-height:48px}
+
+  /* 骨架屏：theme.css 早已定义 .loading-row，但前端从未使用过。
+     手机断点下让它更接近真实消息行的高度。 */
+  .loading-row{height:64px;max-width:100%}
+  .feed-skeleton{display:flex;flex-direction:column;gap:var(--sp-3);padding:var(--sp-3) 0}
+
+  /* ── 手机翻页：不再是「上一页/下一页 + 18px 滑块 + 页码输入框」────
+     滑块 thumb 太小拖不准，页码框要唤起键盘手输。改成一个整行的
+     「加载更多」按钮（≥48px），同时由 IntersectionObserver 提前
+     400px 自动续接，滚到底时通常已经加载好了。 */
+  .feed-more{padding:var(--sp-4) 0 calc(var(--sp-5) + env(safe-area-inset-bottom,0px));text-align:center}
+  .feed-more .button{width:100%;max-width:420px;min-height:48px}
+  .feed-end{padding:var(--sp-4) 0 calc(var(--sp-5) + env(safe-area-inset-bottom,0px));
+    text-align:center;color:var(--fg-tertiary);font-size:var(--fs-sm)}
+
+  /* ── 下拉刷新指示器 ──────────────────────────────────
+     项目刻意不引 androidx，没有 SwipeRefreshLayout 可用，所以指示器由前端
+     自己画：插在 .feed 之前，靠高度展开。 */
+  .ptr{flex:0 0 auto;height:0;overflow:hidden;display:flex;align-items:center;
+    justify-content:center;gap:var(--sp-2);color:var(--fg-secondary);
+    font-size:var(--fs-sm);transition:height .18s var(--ease)}
+  .ptr.ready{color:var(--accent)}
+  .ptr-spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--border-strong);
+    border-top-color:var(--accent);animation:ptr-spin .7s linear infinite}
+  .ptr:not(.ready) .ptr-spin{animation:none}
+}
+
+/* @keyframes 放在媒体查询外：嵌在 @media 里虽合法，但老版本 WebView 对嵌套
+   @keyframes 的支持并不一致。 */
+@keyframes ptr-spin{to{transform:rotate(360deg)}}
+@keyframes ask-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+@media(max-width:650px) and (prefers-reduced-motion:reduce){
+  .right{transition:none}
+}
+
+/* ── 页面型子视图（全部功能 / 添加监控源 / Telegram 账号）────────────
+   它们是 main 里的普通 section，和图片/链接/编号共用同一套视图栈；
+   不再用 position:fixed 浮层，也就不存在「被底下的页面盖住」。 */
+.page-view{display:none;max-width:760px;margin:0 auto;
+  padding:var(--sp-4) var(--sp-4) calc(72px + env(safe-area-inset-bottom,0px))}
+/* 这三个页面是 main 的 flex 子项，必须自己当滚动容器：.shell 是
+   overflow:hidden，.main 也不是滚动区，页面比视口高时超出的部分会被直接
+   裁掉（不是被压扁），表现为「只能看到上半截、怎么滑都不动」。
+   flex:1 1 auto + min-height:0 让它在主列里分到剩余高度，overflow-y 才
+   有可滚动的高度可算。 */
+.page-view.show{display:block;flex:1 1 auto;min-height:0;
+  overflow-y:auto;overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch}
+.page-view .modal-box{width:100%;max-width:100%;max-height:none;overflow:visible;
+  border:0;background:none;padding:0}
+.page-view .modal-box h3{display:flex;align-items:center;justify-content:flex-start;gap:10px;
+  margin:0 0 var(--sp-3);font-size:19px}
+.page-close{min-width:44px;min-height:44px;padding:0;justify-content:center;font-size:18px;
+  flex:none;order:-1;background:none;border:0;color:var(--fg-secondary)}
+.m-group{margin:10px 0 16px}
+.m-group h2{font-size:12px;font-weight:500;letter-spacing:.04em;color:var(--fg-tertiary);margin:10px 2px 8px}
+.m-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.m-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:78px;padding:10px 4px;background:var(--bg-surface);
+  border:1px solid var(--border-default);border-radius:14px;
+  color:var(--fg-primary);font-size:13px}
+.m-cell .m-ico{font-size:21px;color:var(--accent);line-height:1}
+.m-cell:active{background:var(--bg-surface-hover)}
+.m-list{background:var(--bg-surface);border:1px solid var(--border-default);
+  border-radius:14px;overflow:hidden}
+.m-row{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;
+  padding:0 14px;background:none;border:0;border-bottom:1px solid var(--border-subtle);
+  color:var(--fg-primary);font-size:15px;text-align:left}
+.m-row:last-child{border-bottom:0}
+.m-row:active{background:var(--bg-surface-hover)}
+.m-row .m-row-sub{margin-left:auto;color:var(--fg-tertiary);font-size:12px;
+  max-width:52%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.m-row.danger{color:var(--state-danger)}
+.m-sources{background:var(--bg-surface);border:1px solid var(--border-default);
+  border-radius:14px;padding:4px 8px;display:flex;flex-direction:column;gap:2px}
+.m-sources .source{display:flex;align-items:center;justify-content:space-between;
+  width:100%;min-height:46px;padding:0 6px;background:none;border:0;
+  color:var(--fg-primary);font-size:15px;text-align:left}
+.m-sources .source small{color:var(--fg-tertiary);font-size:11px;margin-left:8px}
+.m-sources .source.active{color:var(--accent)}
+.m-sources .source-row{display:flex;align-items:center;gap:2px}
+.m-sources .source-row .source{flex:1;min-width:0}
+.m-sources .src-actions{display:flex;gap:0}
+.m-sources .src-actions .button{min-width:40px;min-height:44px;padding:0;background:none;border:0;color:var(--fg-secondary)}
+.m-sources .addsrc{min-height:46px}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   手机 App 重设计（2026-11）
+   目标：不再缩小的桌面站，而是"一屏一个任务"的原生 App 结构。
+   - 顶栏：页面标题 + 搜索 + 账号 + ⋯（无第二层 chips）
+   - 底栏：5 个真实目的页
+   - 「全部」整页承载 11 个视图 + 监控源 + 管理面板 + 账号 + 其他
+   - 搜索是独立全屏页，长按是底部动作条，灯箱支持双指缩放
+   覆盖范围同时包含横屏手机：短边不足 520px 且为粗指针时同样进入手机布局。
+   ══════════════════════════════════════════════════════════════════════ */
+
+.m-title,.m-search-btn,.m-search-cancel{display:none}
+.m-sheet-close{display:none}
+
+@media (max-width:650px), (max-height:520px){
+  .shell{grid-template-columns:1fr;grid-template-rows:1fr}
+  .side{display:none}
+  .footer{display:none}
+  .only-narrow{display:none}
+
+  /* ── 顶栏 ─────────────────────────────────────────────── */
+  .top{
+    height:calc(54px + env(safe-area-inset-top,0px));
+    padding:env(safe-area-inset-top,0px) 8px 0;
+    display:flex;align-items:center;gap:4px;flex-wrap:nowrap;
+    background:var(--bg-app);border-bottom:1px solid var(--border-subtle)
+  }
+  .top-title,.top .status-dot,.top .search-wrap,.top #exportMenu,.top .theme-toggle{display:none}
+  .m-title{display:block;flex:1 1 auto;min-width:0;font-size:19px;font-weight:650;
+    letter-spacing:-.01em;color:var(--fg-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-search-btn{display:inline-flex;align-items:center;justify-content:center;
+    min-width:44px;min-height:44px;padding:0;font-size:20px;background:none;border:0;color:var(--fg-secondary)}
+  #acct{max-width:104px;min-height:36px;padding:7px 10px;font-size:12px;
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #moreMenu summary{min-width:44px;min-height:44px;padding:0;justify-content:center;font-size:18px}
+
+  /* ── 内容 ─────────────────────────────────────────────── */
+  .view-head{display:none}
+  #deletedBanner{margin:0;border-radius:0;border-left:0;border-right:0}
+  .feed{padding:10px 12px calc(76px + env(safe-area-inset-bottom,0px))}
+  .feed{gap:8px}
+  .msg{padding:12px;border-radius:14px;background:var(--bg-surface);
+    border:1px solid var(--border-subtle);-webkit-touch-callout:none;
+    -webkit-user-select:none;user-select:none}
+  .msg .text{font-size:15px;line-height:1.55}
+  .msg .meta{margin-bottom:6px}
+  .msg .avatar{width:34px;height:34px;border-radius:50%}
+  .msg .name{font-size:14px;font-weight:600}
+  .msg .time{font-size:11px}
+  .message-actions{display:none!important}
+  .msg.msg-open{outline:none}
+  .media-grid{gap:6px}
+  .media-card{border-radius:12px}
+  .topic-bar{padding:0 0 6px;overflow-x:auto;flex-wrap:nowrap}
+  .link-domains{overflow-x:auto;flex-wrap:nowrap}
+  .empty{padding:48px 16px}
+
+  /* ── 底栏 ─────────────────────────────────────────────── */
+  .mobile-nav{
+    display:grid;grid-template-columns:repeat(5,1fr);box-sizing:content-box;
+    position:fixed;left:0;right:0;bottom:0;
+    height:58px;padding-bottom:env(safe-area-inset-bottom,0px);
+    background:var(--bg-elevated);
+    border-top:1px solid var(--border-default);
+    z-index:var(--z-nav)
+  }
+  .mobile-nav button{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;margin:0;min-height:58px;border:0;border-radius:0;background:none;
+    color:var(--fg-secondary);font:var(--fs-sm) var(--font-sans)
+  }
+  .mobile-nav button:active{background:var(--accent-soft)}
+  .mobile-nav .m-ico{font-size:19px;line-height:1.1}
+  .mobile-nav button.active{color:var(--accent)}
+  .toast{bottom:calc(58px + env(safe-area-inset-bottom,0px) + var(--sp-4))}
+
+  body.ask-open{overflow:hidden}
+
+  /* ── 全屏搜索 ─────────────────────────────────────────── */
+  body.m-search-open .top .search-wrap{
+    display:flex;position:fixed;inset:0 0 auto 0;z-index:250;
+    height:calc(54px + env(safe-area-inset-top,0px));
+    padding:env(safe-area-inset-top,0px) 8px 0;gap:8px;
+    align-items:center;flex-wrap:nowrap;background:var(--bg-app);
+    border-bottom:1px solid var(--border-subtle)
+  }
+  body.m-search-open .top .search-wrap .search{
+    flex:1 1 auto;width:auto;height:40px;font-size:16px;padding:0 12px;
+    background:var(--bg-input);border:1px solid var(--border-default);border-radius:10px
+  }
+  body.m-search-open .top .search-wrap .search:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  body.m-search-open .top .search-wrap .btn-search{display:none}
+  .m-search-cancel{display:none}
+  body.m-search-open .m-search-cancel{display:inline-flex;min-height:44px;align-items:center;padding:0 10px}
+  body.m-search-open .m-title,body.m-search-open .m-search-btn,
+  body.m-search-open #acct,body.m-search-open #moreMenu{display:none}
+  /* 搜索页只留输入框：背后正文先藏起来，避免一边打字一边在卡片上滑动。 */
+  body.m-search-open .feed,body.m-search-open .banner,
+  body.m-search-open #topicBar{visibility:hidden}
+
+  /* ── 长按动作条 ───────────────────────────────────────── */
+  .msg-sheet{padding-top:var(--sp-2)}
+  .msg-sheet-title{color:var(--fg-tertiary);font-size:12px;text-align:center;margin:0 0 6px}
+  .m-action{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;
+    padding:0 6px;background:none;border:0;border-top:1px solid var(--border-subtle);
+    color:var(--fg-primary);font-size:16px;text-align:left}
+  .m-action .m-ico{font-size:18px;color:var(--fg-secondary);width:22px;text-align:center}
+  .m-action.danger{color:var(--state-danger)}
+  .m-action.danger .m-ico{color:var(--state-danger)}
+  .m-action.cancel{margin-top:8px;border:1px solid var(--border-default);border-radius:12px;
+    justify-content:center;color:var(--fg-secondary);font-size:15px}
+  .m-action:active{background:var(--bg-surface-hover)}
+  .ask-scrim{touch-action:none}
+
+  /* ── 右侧抽屉 / 底部 sheet（横屏也保持底部）──────────────── */
+  .right{
+    position:fixed!important;top:auto!important;bottom:0;left:0;right:0;
+    width:100%!important;max-height:82dvh;height:auto;
+    border-radius:var(--r-lg) var(--r-lg) 0 0;border-left:0;
+    padding-bottom:calc(var(--sp-4) + env(safe-area-inset-bottom,0px));
+    transform:translateY(100%);transition:transform var(--t-base) var(--ease);
+    z-index:200;display:block!important;overflow:auto;overscroll-behavior:contain
+  }
+  body.show-right .right{transform:translateY(0)}
+  .sheet-scrim{position:fixed;inset:0;background:var(--overlay);z-index:190;display:none}
+  body.show-right .sheet-scrim{display:block}
+  .sheet-grip{display:flex}
+
+  /* ── 下拉刷新（横屏也补齐样式）─────────────────────────── */
+  .ptr{flex:0 0 auto;height:0;overflow:hidden;display:flex;align-items:center;
+    justify-content:center;gap:var(--sp-2);color:var(--fg-secondary);
+    font-size:var(--fs-sm);transition:height .18s var(--ease)}
+  .ptr.ready{color:var(--accent)}
+  .ptr-spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--border-strong);
+    border-top-color:var(--accent);animation:ptr-spin .7s linear infinite}
+  .ptr:not(.ready) .ptr-spin{animation:none}
+}
+
+/* ── 手机布局的浮层顺序 ─────────────────────────────────────────────
+   添加监控源 / Telegram 账号已经是 main 里的普通页面，这里只剩真正需要
+   盖在页面之上的东西：抽屉、登录弹窗、确认条、灯箱、搜索、toast。
+   顺序保持：抽屉 < 遮罩 < 弹窗 < 登录弹窗 < 灯箱 < 搜索 < toast。 */
+@media (max-width:650px), (max-height:520px){
+  .sheet-scrim{z-index:225}
+  .right{z-index:230}
+  .modal{z-index:235}
+  #loginModal{z-index:245}
+  .ask-scrim{z-index:240}
+  .lightbox{z-index:250}
+  body.m-search-open .top .search-wrap{z-index:255}
+  .toast{z-index:260}
+
+  /* 登录：手机上是整页，而不是居中小弹窗。添加监控源 / 账号管理已经是
+     main 里的普通页面，不再需要这套浮层规则。 */
+  #loginModal{
+    align-items:stretch;justify-content:stretch;padding:0}
+  #loginModal .modal-box{
+    width:100%;max-width:100%;height:100%;max-height:100%;
+    border:0;border-radius:0;
+    padding:0 16px calc(16px + env(safe-area-inset-bottom,0px));
+    overflow-y:auto;overscroll-behavior:contain}
+  #loginModal .modal-box h3{
+    position:sticky;top:0;z-index:2;
+    margin:0 -16px;
+    padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;
+    background:var(--bg-elevated);
+    border-bottom:1px solid var(--border-default);
+    font-size:18px;font-weight:650;
+    display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .m-sheet-close{
+    display:flex;align-items:center;justify-content:center;
+    width:44px;height:44px;min-width:44px;padding:0;margin:-8px -8px -8px 0;
+    background:transparent;border:0;border-radius:var(--r-md);
+    color:var(--fg-secondary);font-size:18px;line-height:1}
+  .m-sheet-close:active{background:var(--bg-surface-hover)}
+}

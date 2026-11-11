@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -137,7 +138,18 @@ func TestNotifyTestEndpoint(t *testing.T) {
 		hits++
 	}))
 	defer ts.Close()
-	s, web := newNotifyWebServer(t, true)
+
+	// The webhook target is on loopback, so the server needs the test client:
+	// the default one refuses private destinations by design (SSRF guard).
+	s, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := NewManagedWebServer(s, &Controller{jobs: map[int64]*Job{}}, WebAuthConfig{})
+	ws.NotifyHTTP = ts.Client()
+	web := httptest.NewServer(ws.Handler())
+	t.Cleanup(func() { web.Close(); s.Close() })
+
 	if _, err := s.AddNotifyRule(t.Context(), store.NotifyRule{Name: "ops", WebhookURL: ts.URL, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -160,4 +172,44 @@ func TestNotifyTestEndpoint(t *testing.T) {
 		t.Fatalf("missing rule status %d", resp.StatusCode)
 	}
 	resp.Body.Close()
+}
+
+// Webhooks are a server-side request primitive: a rule pointing at loopback,
+// RFC1918, link-local metadata or a non-http scheme must be rejected at write
+// time so it can never be stored (and later delivered by a background loop).
+func TestValidNotifyWebhookRejectsInternalTargets(t *testing.T) {
+	bad := []string{
+		"http://127.0.0.1/hook",
+		"http://127.0.0.1:8080/hook",
+		"http://localhost/hook",
+		"http://LOCALHOST:9000/hook",
+		"http://[::1]/hook",
+		"http://169.254.169.254/latest/meta-data/",
+		"http://100.100.100.200/latest/meta-data/",
+		"http://10.1.2.3/hook",
+		"http://172.16.0.1/hook",
+		"http://192.168.1.10/hook",
+		"http://0.0.0.0/hook",
+		"http://[::ffff:127.0.0.1]/hook",
+		"ftp://example.com/hook",
+		"file:///etc/passwd",
+		"https://user:pass@example.com/hook",
+		"http:///no-host",
+	}
+	for _, u := range bad {
+		if ValidNotifyWebhook(u) {
+			t.Errorf("ValidNotifyWebhook(%q) = true, want false", u)
+		}
+	}
+	good := []string{
+		"",
+		"https://example.com/hook",
+		"https://hooks.slack.com/services/T000/B000/XXXX",
+		"http://203.0.113.10/hook",
+	}
+	for _, u := range good {
+		if !ValidNotifyWebhook(u) {
+			t.Errorf("ValidNotifyWebhook(%q) = false, want true", u)
+		}
+	}
 }

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>激活 · Telegram Archive</title>
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+/* Tokens come from /static/theme.css so this page re-themes with the app. */
+body{display:flex;align-items:center;justify-content:center;padding:var(--sp-5)}
+.card{width:100%;max-width:420px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--r-card);padding:var(--sp-6) var(--sp-5);box-shadow:var(--shadow-lg)}
+.brand{display:flex;align-items:center;gap:8px;font-size:var(--fs-lg);font-weight:700;letter-spacing:.01em;margin-bottom:4px}
+.brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;box-shadow:0 0 0 4px var(--accent-soft)}
+.sub{color:var(--fg-secondary);font-size:var(--fs-sm);margin:0 0 var(--sp-5);line-height:1.55}
+label{display:block;color:var(--fg-secondary);font-size:var(--fs-xs);margin-bottom:6px;letter-spacing:.02em}
+textarea,input[type=text]{width:100%;background:var(--bg-input);border:1px solid var(--border-default);color:var(--fg-primary);border-radius:var(--r-md);padding:11px var(--sp-3);font:inherit;outline:none;transition:border-color var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
+textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;letter-spacing:.06em;resize:vertical;min-height:64px;line-height:1.6}
+textarea:focus,input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+input::placeholder,textarea::placeholder{color:var(--fg-tertiary)}
+.field{margin-bottom:var(--sp-4)}
+button{width:100%;border:1px solid var(--accent);background:var(--accent);color:var(--fg-inverse);border-radius:var(--r-md);padding:11px 14px;font:inherit;font-weight:600;cursor:pointer;transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
+button:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+button:disabled{opacity:.6;cursor:default}
+.err{display:flex;gap:8px;align-items:flex-start;background:var(--danger-soft);border:1px solid var(--state-danger);color:var(--state-danger);border-radius:var(--r-md);padding:10px var(--sp-3);font-size:var(--fs-sm);margin-bottom:18px;line-height:1.45}
+.err:before{content:"!";font-weight:700;flex:none;width:16px;height:16px;border:1px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;margin-top:1px}
+.ok{display:flex;gap:8px;align-items:flex-start;background:var(--bg-input);border:1px solid var(--state-ok,var(--border-default));color:var(--state-ok,var(--fg-primary));border-radius:var(--r-md);padding:10px var(--sp-3);font-size:var(--fs-sm);margin-bottom:18px;line-height:1.45}
+/* The device code is the one value the customer has to read to someone else,
+   so it gets monospace at a size that survives being read off a phone. */
+.devbox{background:var(--bg-input);border:1px dashed var(--border-strong);border-radius:var(--r-md);padding:var(--sp-3);margin-bottom:var(--sp-4);text-align:center}
+.devbox .cap{color:var(--fg-tertiary);font-size:var(--fs-xs);letter-spacing:.04em;margin-bottom:6px}
+.devbox .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:26px;font-weight:700;letter-spacing:.16em;color:var(--accent);user-select:all;-webkit-user-select:all;cursor:pointer}
+.devbox .hint{color:var(--fg-tertiary);font-size:11px;margin-top:6px;line-height:1.5}
+.foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--border-default);color:var(--fg-tertiary);font-size:var(--fs-xs);line-height:1.6}
+.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.theme{background:none;border:1px solid var(--border-default);color:var(--fg-secondary);width:auto;padding:3px var(--sp-2);font-size:11px;font-weight:400;border-radius:var(--r-sm);margin-top:10px}
+.theme:hover{background:var(--bg-surface);border-color:var(--border-strong);color:var(--fg-primary)}
+@media(max-width:420px){.card{padding:var(--sp-5) var(--sp-4)}.devbox .code{font-size:22px}}
+</style>
+</head>
+<body>
+<form class="card" method="post" action="/activate" autocomplete="off">
+  <div class="brand"><span class="dot"></span>激活 Telegram Archive</div>
+  <p class="sub">这个软件需要授权密钥才能使用。把你的设备码发给提供软件的人，收到密钥后填在下面。</p>
+
+  {{ERROR}}
+
+  <div class="devbox">
+    <div class="cap">本机设备码</div>
+    <div class="code" id="dev">{{DEVICE}}</div>
+    <div class="hint">点一下即可全选复制。密钥与该设备码绑定，换机需要重新申请。</div>
+  </div>
+
+  <input type="hidden" name="next" value="{{NEXT}}">
+  <input type="hidden" name="csrf" value="{{CSRF}}">
+  <div class="field">
+    <label for="k">授权密钥</label>
+    <textarea id="k" name="key" rows="3" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" required autofocus spellcheck="false" autocapitalize="characters" autocorrect="off">{{KEY}}</textarea>
+  </div>
+
+  <button type="submit" id="go">激活</button>
+
+  <div class="foot">
+    <div>{{HINT}}</div>
+    {{THEME}}
+  </div>
+</form>
+<script>
+  // One tap selects the whole device code: the customer's next action is always
+  // "send this to someone", and long-pressing a 26px monospace block on a phone
+  // is where that flow usually falls apart.
+  (function(){
+    var dev = document.getElementById("dev");
+    if (dev) dev.addEventListener("click", function(){
+      try {
+        var r = document.createRange(); r.selectNodeContents(dev);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      } catch (e) {}
+    });
+  })();
+  document.querySelector("form").addEventListener("submit", function(){
+    var b = document.getElementById("go");
+    b.disabled = true; b.textContent = "校验中…";
+  });
+</script>
+</body>
+</html>

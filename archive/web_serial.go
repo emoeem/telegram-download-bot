@@ -56,7 +56,7 @@ func (w *WebServer) serials(rw http.ResponseWriter, r *http.Request) {
 		w.serverError(rw, err)
 		return
 	}
-	sum, err := w.store().SerialSummary(r.Context())
+	sum, err := w.serialSummary(r.Context())
 	if err != nil {
 		w.serverError(rw, err)
 		return
@@ -104,7 +104,18 @@ type purgeRequest struct {
 	Kind         string `json:"kind"`
 	KeepMessages bool   `json:"keep_messages"`
 	Confirm      bool   `json:"confirm"`
+	// All wipes the whole archive. It is a separate field from the selectors
+	// because "delete everything" must never be what happens when a selector
+	// is left blank by mistake.
+	All bool `json:"all"`
+	// ConfirmText must read exactly "清空" when All is set. A boolean alone is
+	// one stray click away from a wipe; typing the word is not.
+	ConfirmText string `json:"confirm_text"`
 }
+
+// purgeConfirmWord is the literal a caller has to type to authorise a full
+// wipe. It is a constant so the CLI and the UI cannot drift apart.
+const purgeConfirmWord = "清空"
 
 func (w *WebServer) purge(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -130,6 +141,17 @@ func (w *WebServer) purge(rw http.ResponseWriter, r *http.Request) {
 		Kind:     strings.TrimSpace(req.Kind),
 		Messages: !req.KeepMessages,
 		DryRun:   !req.Confirm,
+	}
+	if req.All {
+		// The word is only demanded for the destructive call. A dry run must
+		// stay open, otherwise the UI cannot tell the operator how much it is
+		// about to delete before they decide to type it.
+		if req.Confirm && strings.TrimSpace(req.ConfirmText) != purgeConfirmWord {
+			http.Error(rw, `full wipe requires "confirm_text":"`+purgeConfirmWord+`"`, http.StatusBadRequest)
+			return
+		}
+		sel.All = true
+		sel.Messages = true
 	}
 	if v := strings.TrimSpace(req.Until); v != "" {
 		for _, layout := range []string{time.RFC3339, "2006-01-02"} {

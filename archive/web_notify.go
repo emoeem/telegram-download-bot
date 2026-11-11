@@ -3,6 +3,7 @@ package archive
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -191,15 +192,55 @@ func (w *WebServer) notifyRules(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ValidNotifyWebhook restricts webhooks to http(s) so a crafted rule cannot
-// make the server POST into exotic schemes (file:, gopher:, ...). It is the
-// single validation point shared by the Web API, the CLI and delivery, so a
-// rule cannot bypass it by being created through a different entry point.
+// ValidNotifyWebhook restricts webhooks to public http(s) destinations.
+//
+// Two attacks are closed here:
+//   - exotic schemes (file:, gopher:, ...), which a crafted rule could use to
+//     make the server read or POST to a non-HTTP resource;
+//   - SSRF: loopback, RFC1918/CGNAT/cloud-metadata, link-local and multicast
+//     addresses are refused, both as literals and behind names such as
+//     "localhost". Delivery additionally checks the resolved address at dial
+//     time, because a hostname can resolve (or be rebound) to a private IP
+//     after this check.
+//
+// It is the single validation point shared by the Web API, the CLI and
+// delivery, so a rule cannot bypass it by being created through a different
+// entry point. An empty value means "no webhook configured" and stays valid.
 func ValidNotifyWebhook(u string) bool {
+	u = strings.TrimSpace(u)
 	if u == "" {
 		return true
 	}
-	return strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")
+	if !notifyWebhookSchemeOK(u) {
+		return false
+	}
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	// Credentials in the URL are rejected: they are not needed by any
+	// mainstream webhook provider and are a common way to disguise a
+	// destination from naive validators.
+	if parsed.User != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	if host == "" || blockedWebhookHost(host) {
+		return false
+	}
+	return true
+}
+
+// notifyWebhookSchemeOK is the delivery-time scheme check. Address restrictions
+// live in the guarded webhook client instead, so a client supplied by the
+// embedder (or a test) can deliberately reach a local endpoint while production
+// keeps refusing private destinations at dial time.
+func notifyWebhookSchemeOK(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 // notifyTest delivers a synthetic message through one rule and reports the
@@ -233,6 +274,12 @@ func (w *WebServer) notifyTest(rw http.ResponseWriter, r *http.Request) {
 		req.Text = "tdl archive notify test: 如果收到这条消息，说明规则 " + rule.Name + " 的通知链路是通的。"
 	}
 	m := store.Message{MessageID: 0, Date: time.Now(), Text: req.Text}
-	d := NewNotifier(w.store()).DispatchTo(r.Context(), rule, m)
+	n := NewNotifier(w.store())
+	// NotifyHTTP lets a deployment (or a test with a local server) supply the
+	// webhook client. Left nil, delivery uses the SSRF-guarded default.
+	if w.NotifyHTTP != nil {
+		n.WebhookHTTP = w.NotifyHTTP
+	}
+	d := n.DispatchTo(r.Context(), rule, m)
 	writeJSON(rw, map[string]any{"status": d.Status, "channel": d.Channel, "error": d.Error})
 }

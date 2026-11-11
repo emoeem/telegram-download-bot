@@ -1,0 +1,14 @@
+{
+  "name": "tdl-archive-webui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tailwind build for archive/web. 产物提交进 git，因此 go build 与 docker build 都不需要 Node。",
+  "scripts": {
+    "build": "tailwindcss -i ./src/app.css -o ../archive/web/static/app.css --minify",
+    "watch": "tailwindcss -i ./src/app.css -o ../archive/web/static/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}
