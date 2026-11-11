@@ -28,7 +28,6 @@ WORKDIR /src
 
 COPY go.mod go.sum go.work go.work.sum ./
 COPY core ./core
-COPY extension ./extension
 COPY app ./app
 COPY archive ./archive
 COPY cmd ./cmd

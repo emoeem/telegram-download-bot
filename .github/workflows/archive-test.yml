@@ -24,7 +24,7 @@ jobs:
         run: go test ./archive/... ./license/... ./cmd -count=1
       - name: Vet
         run: go vet ./archive/... ./license/... ./cmd
-      - name: Core / extension modules
-        run: (cd core && go build ./...) && (cd extension && go build ./...)
+      - name: Core module
+        run: (cd core && go build ./...)
       - name: Build
         run: go build -o /tmp/tdl-check .

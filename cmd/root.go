@@ -3,8 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,16 +14,13 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
-	"golang.org/x/net/proxy"
 
 	"github.com/iyear/tdl/core/logctx"
 	"github.com/iyear/tdl/core/storage"
 	tclientcore "github.com/iyear/tdl/core/tclient"
 	"github.com/iyear/tdl/core/util/fsutil"
 	"github.com/iyear/tdl/core/util/logutil"
-	"github.com/iyear/tdl/core/util/netutil"
 	"github.com/iyear/tdl/pkg/consts"
-	"github.com/iyear/tdl/pkg/extensions"
 	"github.com/iyear/tdl/pkg/kv"
 	"github.com/iyear/tdl/pkg/tclient"
 )
@@ -53,17 +48,11 @@ var (
 		ID:    "tools",
 		Title: "Tools",
 	}
-	groupExtensions = &cobra.Group{
-		ID:    "extensions",
-		Title: "Extensions",
-	}
 )
 
 func New() *cobra.Command {
 	// allow PersistentPreRun to be called for every command
 	cobra.EnableTraverseRunHooks = true
-
-	em := extensions.NewManager(consts.ExtensionsPath)
 
 	cmd := &cobra.Command{
 		Use:           "tdl",
@@ -99,25 +88,6 @@ func New() *cobra.Command {
 
 			cmd.SetContext(kv.With(cmd.Context(), stg))
 
-			// extension manager client proxy
-			var dialer proxy.ContextDialer = proxy.Direct
-			if p := viper.GetString(consts.FlagProxy); p != "" {
-				// A malformed --proxy must fail loudly: falling back to a direct
-				// connection would silently expose the user's real IP address.
-				newProxy := netutil.NewProxy
-				if viper.GetBool(consts.FlagProxyInsecure) {
-					newProxy = netutil.NewProxyInsecure
-				}
-				d, err := newProxy(p)
-				if err != nil {
-					return errors.Wrap(err, "parse proxy")
-				}
-				dialer = d
-			}
-			em.SetClient(&http.Client{Transport: &http.Transport{
-				DialContext: dialer.DialContext,
-			}})
-
 			// Licence gate last: by this point the logger exists, so a refusal
 			// is written to the same log file the user already knows to check.
 			return enforceCLILicence(cmd)
@@ -145,17 +115,10 @@ func New() *cobra.Command {
 		NoBottomNewline: true,
 	})
 
-	cmd.AddGroup(groupAccount, groupTools, groupExtensions)
+	cmd.AddGroup(groupAccount, groupTools)
 
-	cmd.AddCommand(NewVersion(), NewLogin(), NewDownload(), NewForward(),
-		NewChat(), NewUpload(), NewBackup(), NewRecover(), NewMigrate(),
-		NewGen(), NewGUI(), NewArchive(), NewLicense(), NewExtension(em))
-
-	// append extension command to root
-	exts, _ := em.List(context.Background(), false)
-	for _, e := range exts {
-		cmd.AddCommand(NewExtensionCmd(em, e, os.Stdin, os.Stdout, os.Stderr))
-	}
+	cmd.AddCommand(NewVersion(), NewLogin(), NewDownload(),
+		NewGUI(), NewArchive(), NewLicense())
 
 	cmd.PersistentFlags().StringToString(consts.FlagStorage,
 		DefaultBoltStorage,
@@ -193,15 +156,6 @@ func New() *cobra.Command {
 	viper.SetEnvPrefix("tdl")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
-
-	// extension command format: <global-flags> <extension-name> <extension-flags>,
-	// which means parse args layer by layer. But common command flags are flat.
-	// To keep compatibility, we only set TraverseChildren to true for extension
-	// command instead of other commands.
-	foundCmd, _, err := cmd.Find(os.Args[1:])
-	if err == nil && foundCmd.GroupID == groupExtensions.ID {
-		cmd.TraverseChildren = true // allow global config to be parsed before extension command is executed
-	}
 
 	return cmd
 }

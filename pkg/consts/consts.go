@@ -38,10 +38,7 @@ func init() {
 // It is not safe to call concurrently with code that is already reading the
 // paths, so the bridge calls it once, before opening any store.
 func Rebase(dataDir string) error {
-	extensions := filepath.Join(dataDir, "extensions")
-	extensionsData := filepath.Join(extensions, "data")
-
-	for _, p := range []string{dataDir, extensions, extensionsData} {
+	for _, p := range []string{dataDir} {
 		if err := os.MkdirAll(p, 0o755); err != nil {
 			return err
 		}
@@ -50,8 +47,6 @@ func Rebase(dataDir string) error {
 	HomeDir = filepath.Dir(dataDir)
 	DataDir = dataDir
 	LogPath = filepath.Join(dataDir, "log")
-	ExtensionsPath = extensions
-	ExtensionsDataPath = extensionsData
 
 	return nil
 }

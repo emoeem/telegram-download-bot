@@ -25,7 +25,6 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/ivanpirog/coloredcobra v1.0.1
 	github.com/iyear/tdl/core v0.20.2
-	github.com/iyear/tdl/extension v0.20.2
 	github.com/jedib0t/go-pretty/v6 v6.5.0
 	github.com/klauspost/compress v1.18.5
 	github.com/kopoli/go-terminal-size v0.0.0-20170219200355-5c97524c8b54
@@ -152,7 +151,5 @@ require (
 // extension in this tree: /archive depends on local changes that are not in the
 // published v0.20.2.
 replace github.com/iyear/tdl/core => ./core
-
-replace github.com/iyear/tdl/extension => ./extension
 
 tool golang.org/x/mobile/cmd/gobind
