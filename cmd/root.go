@@ -118,7 +118,9 @@ func New() *cobra.Command {
 				DialContext: dialer.DialContext,
 			}})
 
-			return nil
+			// Licence gate last: by this point the logger exists, so a refusal
+			// is written to the same log file the user already knows to check.
+			return enforceCLILicence(cmd)
 		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			return multierr.Combine(
@@ -147,7 +149,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(NewVersion(), NewLogin(), NewDownload(), NewForward(),
 		NewChat(), NewUpload(), NewBackup(), NewRecover(), NewMigrate(),
-		NewGen(), NewGUI(), NewArchive(), NewExtension(em))
+		NewGen(), NewGUI(), NewArchive(), NewLicense(), NewExtension(em))
 
 	// append extension command to root
 	exts, _ := em.List(context.Background(), false)
