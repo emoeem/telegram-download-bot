@@ -158,3 +158,27 @@ func (l *legacyKV) Delete(_ context.Context, key string) error {
 		return tx.Bucket(l.ns).Delete([]byte(key))
 	})
 }
+
+// Keys lists every key in the namespace.
+//
+// It is deliberately not part of storage.Storage: that interface is the
+// smallest surface every backend must provide, and most callers only need
+// point lookups. Bulk operations (for example re-sealing every legacy plaintext
+// value during an encryption migration) type-assert to interface{ Keys(...) }
+// and fall back to a documented subset when the backend cannot enumerate.
+func (l *legacyKV) Keys(_ context.Context) ([]string, error) {
+	var keys []string
+	if err := l.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(l.ns)
+		if b == nil {
+			return nil
+		}
+		return b.ForEach(func(k, _ []byte) error {
+			keys = append(keys, string(k))
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}

@@ -15,8 +15,11 @@ data/
 log/
 downloads/
 
-tdl
-telegram-download-bot
+# Anchored: an unanchored `tdl` also matched the com/tdl/ package directory in
+# android/app/src/main/java, so every Java source file of the app was invisible
+# to git (git ls-files android/ returned nothing).
+/tdl
+/telegram-download-bot
 tdl.bak-*
 __debug_bin*
 *.exe
@@ -37,3 +40,21 @@ coverage/
 .workbuddy/
 .mimosa/
 .zcode/
+
+# webui 只是 Tailwind 的构建工具，不进二进制、不进发布。
+# 注意：产物 archive/web/static/app.css 是**要提交**的（go build 依赖它），
+# 只有 node_modules 忽略。
+webui/node_modules/
+
+# 临时构建产物
+tdl.new
+
+# Distribution signing material — never commit
+/keystore.properties
+/android/keystore.properties
+*.jks
+*.keystore
+
+# 内部代码审查工作区与一次性备份脚本，不进公开仓库。
+/_review/
+*.bak-*
